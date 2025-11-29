@@ -42,6 +42,9 @@ export const LoginView = ({ onLogin, loading, onInitialize }) => {
           {loading ? '登入中...' : '登入'}
         </Button>
 
+        {/* 插入安裝引導按鈕 */}
+        <InstallPrompt />
+
         {/* 暫時的初始化按鈕區域 */}
         {/*<InitializeButton onInitialize={onInitialize} />*/}
       </Card>
