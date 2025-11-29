@@ -6,22 +6,19 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useToast } from '../context/ToastContext';
-import { compressImage } from '../utils/compressor'; // 引入壓縮工具
+import { compressImage } from '../utils/compressor'; 
 
 const uploadImages = async (fileList) => {
   const urls = [];
   for (const file of fileList) {
     try {
-      // 上傳前先壓縮
       const fileToUpload = await compressImage(file);
-      
       const storageRef = ref(storage, `uploads/${Date.now()}_${fileToUpload.name}`);
       await uploadBytes(storageRef, fileToUpload);
       const url = await getDownloadURL(storageRef);
       urls.push(url);
     } catch (error) {
       console.error("Upload failed:", error);
-      // 如果壓縮或上傳失敗，這裡可以選擇 throw error 或跳過
     }
   }
   return urls;
@@ -31,7 +28,6 @@ export const useAdmin = (currentUser, seasonName, users) => {
   const { showToast } = useToast();
   const [adminLoading, setAdminLoading] = useState(false);
 
-  // 通用錯誤處理與 Loading 狀態
   const execute = async (fn, successMsg) => {
     setAdminLoading(true);
     try {
@@ -53,6 +49,7 @@ export const useAdmin = (currentUser, seasonName, users) => {
     }, "任務新增成功"),
 
     deleteTask: (firestoreId) => execute(async () => {
+      if (!firestoreId || typeof firestoreId !== 'string') throw new Error("無效的任務 ID (Firestore ID)");
       await deleteDoc(doc(db, "tasks", firestoreId));
     }, "已刪除"),
 
@@ -68,20 +65,32 @@ export const useAdmin = (currentUser, seasonName, users) => {
     }, "提交成功"),
 
     withdraw: (firestoreId) => execute(async () => {
+      if (!firestoreId || typeof firestoreId !== 'string') throw new Error("無效的提交 ID (Firestore ID)");
       await deleteDoc(doc(db, "submissions", firestoreId));
     }, "已撤回"),
 
     review: (sub, action, points, statusOverride) => execute(async () => {
+        // 強制檢查 sub 物件結構
+        if (!sub) throw new Error("提交紀錄物件不存在");
+        if (!sub.firestoreId || typeof sub.firestoreId !== 'string') {
+            console.error("Invalid submission object (missing firestoreId):", sub);
+            throw new Error(`無法讀取提交紀錄 ID (ID: ${sub.id || 'unknown'})。請嘗試重新整理頁面。`);
+        }
+
         const newStatus = statusOverride || (action === 'approve' ? 'approved' : 'rejected');
         const newPoints = Number(points) || 0;
         
-        await updateDoc(doc(db, "submissions", sub.firestoreId), { status: newStatus, points: newPoints });
+        // 確保 doc() 的參數是正確的
+        const subRef = doc(db, "submissions", sub.firestoreId);
+        await updateDoc(subRef, { status: newStatus, points: newPoints });
         
         if (newStatus === 'approved') {
            const user = users.find(u => u.uid === sub.uid);
-           if (user) {
+           if (user && user.firestoreId) { // 這裡也要檢查 user.firestoreId
                const currentPoints = Number(user.points) || 0;
                await updateDoc(doc(db, "users", user.firestoreId), { points: currentPoints + newPoints });
+           } else {
+               console.warn(`User ${sub.uid} not found or missing firestoreId, skipping points update.`);
            }
         }
     }, "操作成功"),
@@ -96,6 +105,7 @@ export const useAdmin = (currentUser, seasonName, users) => {
     }, "公告已發佈"),
 
     updateAnnouncement: (item, title, content, rawFiles = []) => execute(async () => {
+        if (!item || !item.firestoreId || typeof item.firestoreId !== 'string') throw new Error("無效的公告 ID");
         let imageUrls = [];
         let existingImages = [];
         try { existingImages = JSON.parse(item.images || '[]'); } catch(e){}
@@ -105,6 +115,7 @@ export const useAdmin = (currentUser, seasonName, users) => {
     }, "公告已更新"),
 
     deleteAnnouncement: (firestoreId) => execute(async () => {
+        if (!firestoreId || typeof firestoreId !== 'string') throw new Error("無效的公告 ID");
         await deleteDoc(doc(db, "announcements", firestoreId));
     }),
 
@@ -113,10 +124,12 @@ export const useAdmin = (currentUser, seasonName, users) => {
     }, "遊戲已新增"),
 
     updateGame: (item, data) => execute(async () => { 
+        if (!item || !item.firestoreId || typeof item.firestoreId !== 'string') throw new Error("無效的遊戲 ID");
         await updateDoc(doc(db, "games", item.firestoreId), data); 
     }, "遊戲已更新"),
 
     deleteGame: (firestoreId) => execute(async () => { 
+        if (!firestoreId || typeof firestoreId !== 'string') throw new Error("無效的遊戲 ID");
         await deleteDoc(doc(db, "games", firestoreId)); 
     }),
 

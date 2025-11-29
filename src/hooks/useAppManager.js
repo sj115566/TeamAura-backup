@@ -20,7 +20,7 @@ export const useAppManager = () => {
   // 3. Admin 模組
   const { actions: adminActions, adminLoading } = useAdmin(currentUser, seasonName, users);
 
-  // UI Helper Actions
+  // UI Helper Actions (這些是 "Wrapper" 函式，負責先用 ID 找到物件，再呼叫 Admin Action)
   const uiActions = {
     setTab: (tab) => setActiveTab(tab),
     toggleWeek: (week) => {
@@ -28,7 +28,8 @@ export const useAppManager = () => {
     },
     refresh: () => showToast("資料已是最新狀態"),
     
-    // 封裝確認對話框邏輯
+    // --- 這裡的函式名稱與 adminActions 重疊，必須確保這些 Wrapper 優先執行 ---
+
     deleteTask: (id) => {
       const task = tasks.find(t => t.id === id);
       if (task) {
@@ -67,7 +68,12 @@ export const useAppManager = () => {
     },
     review: (subId, action, points, statusOverride) => {
         const sub = submissions.find(s => s.id === subId);
-        if(sub) adminActions.review(sub, action, points, statusOverride);
+        if(sub) {
+            adminActions.review(sub, action, points, statusOverride);
+        } else {
+            console.error("Submission not found in local state:", subId);
+            showToast("找不到該筆資料，請重新整理", "error");
+        }
     },
     updateAnnouncement: (id, title, content, rawFiles) => {
         const item = announcements.find(x => x.id === id);
@@ -98,7 +104,12 @@ export const useAppManager = () => {
       activeTab, loading: authLoading || adminLoading, expandedWeeks, seasonName, refreshing: false
     },
     actions: {
-      login, logout, ...uiActions, ...adminActions
+      login, 
+      logout, 
+      // ⚠️ 修正重點：把 ...adminActions 放在前面，...uiActions 放在後面
+      // 這樣當函式名稱重複時 (如 review, deleteTask)，會優先使用 uiActions 的版本 (Wrapper)
+      ...adminActions,
+      ...uiActions 
     },
     sortedUsers,
     dialog,
