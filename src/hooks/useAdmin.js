@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { db, storage } from '../services/firebase';
 import { 
   collection, addDoc, updateDoc, deleteDoc, doc, 
-  serverTimestamp, setDoc, writeBatch, getDocs, query, where
+  serverTimestamp, setDoc, writeBatch, getDocs, query, where, getDoc
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useToast } from '../context/ToastContext';
@@ -69,30 +69,56 @@ export const useAdmin = (currentUser, seasonName, users) => {
       await deleteDoc(doc(db, "submissions", firestoreId));
     }, "已撤回"),
 
+    // 關鍵修正：Review 邏輯包含分數回滾 (Rollback)
     review: (sub, action, points, statusOverride) => execute(async () => {
-        // 強制檢查 sub 物件結構
         if (!sub) throw new Error("提交紀錄物件不存在");
         if (!sub.firestoreId || typeof sub.firestoreId !== 'string') {
             console.error("Invalid submission object (missing firestoreId):", sub);
-            throw new Error(`無法讀取提交紀錄 ID (ID: ${sub.id || 'unknown'})。請嘗試重新整理頁面。`);
+            throw new Error(`無法讀取提交紀錄 ID。請嘗試重新整理頁面。`);
         }
 
         const newStatus = statusOverride || (action === 'approve' ? 'approved' : 'rejected');
         const newPoints = Number(points) || 0;
-        
-        // 確保 doc() 的參數是正確的
+        const oldStatus = sub.status;
+        const oldPoints = Number(sub.points) || 0;
+
+        // 1. 更新 Submission 狀態與分數
         const subRef = doc(db, "submissions", sub.firestoreId);
         await updateDoc(subRef, { status: newStatus, points: newPoints });
         
-        if (newStatus === 'approved') {
-           const user = users.find(u => u.uid === sub.uid);
-           if (user && user.firestoreId) { // 這裡也要檢查 user.firestoreId
-               const currentPoints = Number(user.points) || 0;
-               await updateDoc(doc(db, "users", user.firestoreId), { points: currentPoints + newPoints });
-           } else {
-               console.warn(`User ${sub.uid} not found or missing firestoreId, skipping points update.`);
-           }
+        // 2. 計算對使用者總分的影響
+        // 找出該使用者目前的資料 (必須確保有 firestoreId)
+        const user = users.find(u => u.uid === sub.uid);
+        if (!user || !user.firestoreId) {
+            console.warn(`User ${sub.uid} not found or missing firestoreId, skipping points update.`);
+            return;
         }
+
+        let pointDiff = 0;
+
+        // 情境 A: 原本是通過，現在被駁回 (或改回審核中) -> 扣掉原本加的分數
+        if (oldStatus === 'approved' && newStatus !== 'approved') {
+            pointDiff = -oldPoints;
+        }
+        // 情境 B: 原本沒通過，現在通過 -> 加上新分數
+        else if (oldStatus !== 'approved' && newStatus === 'approved') {
+            pointDiff = newPoints;
+        }
+        // 情境 C: 原本通過，現在還是通過 (但分數可能變了) -> 修正差額
+        else if (oldStatus === 'approved' && newStatus === 'approved') {
+            pointDiff = newPoints - oldPoints;
+        }
+        // 情境 D: 原本沒通過，現在還是沒通過 -> 分數不變 (0)
+
+        // 3. 如果分數有變動，更新使用者總分
+        if (pointDiff !== 0) {
+            const currentTotal = Number(user.points) || 0;
+            await updateDoc(doc(db, "users", user.firestoreId), { 
+                points: currentTotal + pointDiff 
+            });
+            console.log(`User ${user.uid} points updated: ${currentTotal} -> ${currentTotal + pointDiff} (Diff: ${pointDiff})`);
+        }
+
     }, "操作成功"),
 
     addAnnouncement: (title, content, rawFiles = []) => execute(async () => {

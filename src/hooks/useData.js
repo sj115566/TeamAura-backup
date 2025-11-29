@@ -36,22 +36,34 @@ export const useData = (currentUser, updateCurrentUser) => {
     });
     
     // 5. 使用者列表 (Users)
+    // 這裡的邏輯非常關鍵：它負責即時更新所有人的分數，並且同步更新自己 (currentUser)
     const unsubUsers = onSnapshot(query(collection(db, "users")), (snapshot) => {
       const usersData = snapshot.docs.map(doc => {
         const data = doc.data();
         return { 
             ...data, 
             uid: data.uid || data.username, 
+            // 強制轉為數字，避免字串相加導致錯誤 (e.g., "10" + 10 = "1010")
             points: Number(data.points) || 0,
-            firestoreId: doc.id // 確保這裡也有設定
+            firestoreId: doc.id 
         };
       });
       setUsers(usersData);
       
+      // 同步更新當前使用者 (currentUser)
+      // 當 users 集合中有自己的資料變動時 (例如積分增加)，這裡會觸發
       if (currentUser) {
           const freshMe = usersData.find(u => u.username === currentUser.username);
-          if (freshMe && (freshMe.points !== currentUser.points || freshMe.isAdmin !== currentUser.isAdmin)) {
-              updateCurrentUser(freshMe);
+          if (freshMe) {
+              // 檢查是否有關鍵資料變動，避免無窮迴圈
+              // 這裡只要積分 (points) 或管理員權限 (isAdmin) 有變，就呼叫 updateCurrentUser
+              const pointsChanged = freshMe.points !== (currentUser.points || 0);
+              const adminChanged = freshMe.isAdmin !== currentUser.isAdmin;
+              
+              if (pointsChanged || adminChanged) {
+                  console.log(`User data synced: Points ${currentUser.points} -> ${freshMe.points}`);
+                  updateCurrentUser(freshMe);
+              }
           }
       }
     });
@@ -69,7 +81,9 @@ export const useData = (currentUser, updateCurrentUser) => {
       unsubUsers(); 
       unsubGames(); 
     };
-  }, [currentUser?.username]);
+  }, [currentUser?.username]); 
+  // 注意：這裡依賴 currentUser.username，而不是整個 currentUser 物件
+  // 這樣可以避免因為 points 更新導致 useEffect 重新執行 (造成閃爍或無窮迴圈)
 
   return { tasks, submissions, users, announcements, games, seasonName };
 };
