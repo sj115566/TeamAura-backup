@@ -31,7 +31,7 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
         <div className="space-y-3">
           {pendingSubs.map(sub => {
             const task = tasks.find(t => t.id === sub.taskId);
-            const imgs = JSON.parse(sub.images || sub.proofImage || '[]'); // 相容舊欄位名稱
+            const imgs = JSON.parse(sub.images || sub.proofImage || '[]'); 
             const isVari = task?.type === 'variable';
             const currentPoints = inputPoints[sub.id] || '';
 
@@ -53,6 +53,7 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
                         onClick={() => setViewing(url)} 
                         className="w-16 h-16 object-cover rounded border border-slate-500 cursor-pointer hover:opacity-80 transition-opacity" 
                         alt="proof"
+                        loading="lazy" // 優化：延遲載入圖片
                       />
                     ))}
                   </div>

@@ -83,7 +83,7 @@ const AppContent = () => {
         <LoginView 
             onLogin={actions.login} 
             loading={loading} 
-            onInitialize={actions.initializeSystem} // 傳遞初始化動作
+            onInitialize={actions.initializeSystem} 
         />
       </>
     );
@@ -101,7 +101,8 @@ const AppContent = () => {
           {seasonName && <span className="text-xs font-bold text-gray-500 border-l border-gray-300 pl-2">{seasonName}</span>}
         </div>
         <div className="flex items-center gap-2">
-          {!currentUser.isAdmin && <Badge color="indigo" className="text-sm">{currentUser.points} pts</Badge>}
+          {/* 修正 1: 加上 || 0 確保有點數顯示 */}
+          {!currentUser.isAdmin && <Badge color="indigo" className="text-sm">{(currentUser.points || 0)} pts</Badge>}
           <button onClick={actions.refresh} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
             <Icon name="RefreshCw" className={`w-4 h-4 ${state.refreshing ? 'animate-spin' : ''}`} />
           </button>
@@ -138,7 +139,11 @@ const AppContent = () => {
         {activeTab === 'profile' && (
           <ProfileView 
             currentUser={currentUser} tasks={tasks} submissions={submissions} 
-            isAdmin={currentUser.isAdmin} onLogout={actions.logout} onReview={actions.review} 
+            isAdmin={currentUser.isAdmin} 
+            onLogout={actions.logout} 
+            onReview={actions.review} 
+            // 修正 2: 傳遞初始化函式
+            onInitialize={actions.initializeSystem}
           />
         )}
         {activeTab === 'game' && (

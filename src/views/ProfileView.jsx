@@ -5,7 +5,7 @@ import { Card } from '../components/ui/Card';
 import { Icon } from '../components/Icons';
 import { AdminConsole } from '../components/AdminConsole';
 
-export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin, onReview }) => {
+export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin, onReview, onInitialize }) => {
   const [historySort, setHistorySort] = useState('desc');
   const [showHistory, setShowHistory] = useState(false);
   const [showStats, setShowStats] = useState(false);
@@ -55,7 +55,8 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
           <>
             <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4 mb-4">
               <div>
-                <div className="text-2xl font-black text-indigo-600">{currentUser.points}</div>
+                {/* 修正 1: 確保分數顯示為數字，避免空白 */}
+                <div className="text-2xl font-black text-indigo-600">{(currentUser.points || 0)}</div>
                 <div className="text-[10px] text-gray-400 uppercase font-bold">總積分</div>
               </div>
               <div>
@@ -139,7 +140,8 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
       {isAdmin && (
           <div className="mt-4 text-center">
               <button 
-                  onClick={() => window.confirm("確定要初始化？這會建立預設遊戲與設定檔") && actions.initializeSystem()}
+                  // 修正 2: 改用 props 傳入的 onInitialize
+                  onClick={() => window.confirm("確定要初始化？這會建立預設遊戲與設定檔") && onInitialize()}
                   className="text-xs text-gray-400 hover:text-gray-600 underline"
               >
                   [系統] 初始化資料庫 (僅第一次使用)

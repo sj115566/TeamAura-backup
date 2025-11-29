@@ -70,7 +70,12 @@ export const AnnouncementView = ({ announcements, isAdmin, onOpenAdd, onDelete, 
                       <div className={`grid gap-1 mt-2 rounded-lg overflow-hidden ${images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                         {images.map((url, idx) => (
                           <div key={idx} onClick={() => setViewingImg(url)} className={`relative cursor-pointer group ${images.length === 3 && idx === 0 ? 'col-span-2' : ''}`}>
-                            <img src={url} className="w-full h-full object-cover max-h-[300px] hover:opacity-90 transition-opacity" alt="announcement" />
+                            <img 
+                              src={url} 
+                              className="w-full h-full object-cover max-h-[300px] hover:opacity-90 transition-opacity" 
+                              alt="announcement" 
+                              loading="lazy" // 優化：延遲載入
+                            />
                           </div>
                         ))}
                       </div>
