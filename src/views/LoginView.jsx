@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
+// 引入安裝引導
+import { InstallPrompt } from '../components/InstallPrompt';
 // 引入初始化按鈕
 import { InitializeButton } from '../components/InitializeButton';
 
