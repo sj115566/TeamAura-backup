@@ -1,17 +1,34 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from './useAuth';
 import { useData } from './useData';
 import { useAdmin } from './useAdmin';
 import { useToast } from '../context/ToastContext';
 import { db } from '../services/firebase'; 
 import { collection, query, where, getDocs } from 'firebase/firestore'; 
+import { useRegisterSW } from 'virtual:pwa-register/react';
 
 export const useAppManager = () => {
   const [activeTab, setActiveTab] = useState('announcements');
   const [expandedWeeks, setExpandedWeeks] = useState({});
   const [dialog, setDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
   const [exporting, setExporting] = useState(false);
+  
+  // 新增通知狀態
+  const [notifications, setNotifications] = useState({ announcements: false, tasks: false });
+
   const { showToast } = useToast();
+
+  const {
+    needRefresh: [needRefresh, setNeedRefresh],
+    updateServiceWorker,
+  } = useRegisterSW({
+    onRegistered(r) {
+      console.log('SW Registered: ' + r);
+    },
+    onRegisterError(error) {
+      console.log('SW registration error', error);
+    },
+  });
 
   const { currentUser, loading: authLoading, login, logout, updateCurrentUser } = useAuth();
 
@@ -22,12 +39,56 @@ export const useAppManager = () => {
 
   const { actions: adminActions, adminLoading } = useAdmin(currentUser, seasonName, users);
 
+  // --- 通知紅點邏輯 ---
+  useEffect(() => {
+    if (!currentUser || isHistoryMode) return; // 歷史模式不顯示紅點
+
+    const checkNewContent = () => {
+        const lastViewedAnc = localStorage.getItem('lastViewed_announcements') || 0;
+        const lastViewedTask = localStorage.getItem('lastViewed_tasks') || 0;
+
+        // 檢查是否有比上次查看時間更新的公告
+        const hasNewAnc = announcements.some(a => new Date(a.timestamp).getTime() > lastViewedAnc);
+        
+        // 檢查是否有比上次查看時間更新的任務 (假設任務也有 createdAt，如果沒有可以用 id 推算或忽略)
+        // 這裡假設 tasks 有 createdAt 欄位，如果沒有，可以用 id (如果是 timestamp based id)
+        const hasNewTask = tasks.some(t => {
+            const time = t.createdAt?.seconds ? t.createdAt.seconds * 1000 : parseInt(t.id.split('_')[1] || 0);
+            return time > lastViewedTask;
+        });
+
+        setNotifications({ 
+            announcements: hasNewAnc && activeTab !== 'announcements', 
+            tasks: hasNewTask && activeTab !== 'tasks'
+        });
+    };
+
+    checkNewContent();
+  }, [announcements, tasks, activeTab, currentUser, isHistoryMode]);
+
+
   const uiActions = {
-    setTab: (tab) => setActiveTab(tab),
+    setTab: (tab) => {
+        setActiveTab(tab);
+        // 切換 Tab 時，更新該 Tab 的最後查看時間，並清除紅點
+        localStorage.setItem(`lastViewed_${tab}`, Date.now());
+        setNotifications(prev => ({ ...prev, [tab]: false }));
+    },
     toggleWeek: (week) => {
       setExpandedWeeks(prev => ({ ...prev, [week]: !prev[week] }));
     },
-    refresh: () => showToast("資料已是最新狀態"),
+    
+    refresh: () => {
+        if (needRefresh) {
+            showToast("發現新版本，正在更新...", "success");
+            updateServiceWorker(true); 
+        } else {
+            showToast("正在強制重新載入...", "success");
+            setTimeout(() => {
+                window.location.reload(); 
+            }, 500);
+        }
+    },
     
     setSeason: (season) => {
         setSelectedSeason(season);
@@ -152,7 +213,6 @@ export const useAppManager = () => {
         if(item) return adminActions.updateGame(item, data);
     },
 
-    // 強制重置 (UI Wrapper)
     hardResetSystem: () => {
         setDialog({ 
             isOpen: true, 
@@ -165,7 +225,6 @@ export const useAppManager = () => {
         });
     },
     
-    // 安全初始化
     initializeSystem: adminActions.initializeSystem
   };
 
@@ -183,8 +242,10 @@ export const useAppManager = () => {
   return {
     state: {
       tasks, submissions, users, announcements, games, currentUser,
-      activeTab, loading: authLoading || adminLoading || exporting, expandedWeeks, seasonName, refreshing: false,
-      currentSeason, selectedSeason, availableSeasons, isHistoryMode
+      activeTab, loading: authLoading || adminLoading || exporting, expandedWeeks, seasonName, refreshing: false, 
+      currentSeason, selectedSeason, availableSeasons, isHistoryMode,
+      needRefresh,
+      notifications // 輸出通知狀態
     },
     actions: {
       login, 

@@ -22,7 +22,8 @@ const AppContent = () => {
   // 解構新的狀態
   const { 
       tasks, submissions, users, currentUser, activeTab, loading, expandedWeeks, 
-      announcements, games, selectedSeason, availableSeasons, isHistoryMode 
+      announcements, games, selectedSeason, availableSeasons, isHistoryMode,
+      needRefresh, notifications // 接收 notifications
   } = state;
 
   const [taskModal, setTaskModal] = useState({ isOpen: false, data: { title: '', points: 10, icon: '🐾', description: '', week: '1', type: 'fixed' } });
@@ -180,8 +181,8 @@ const AppContent = () => {
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 py-2 flex justify-around text-xs font-bold text-gray-400 safe-area-bottom z-30">
         {[
-          { id: 'announcements', icon: 'Bell', label: '公告' },
-          { id: 'tasks', icon: 'Map', label: '任務' }, 
+          { id: 'announcements', icon: 'Bell', label: '公告', hasNotif: notifications?.announcements }, // 綁定通知
+          { id: 'tasks', icon: 'Map', label: '任務', hasNotif: notifications?.tasks }, // 綁定通知
           { id: 'leaderboard', icon: 'Trophy', label: '排行' }, 
           ...(currentUser.isAdmin ? [{ id: 'report', icon: 'Table', label: '報表' }] : []), 
           { id: 'profile', icon: 'User', label: '個人' },
@@ -190,14 +191,21 @@ const AppContent = () => {
           <button 
             key={tab.id} 
             onClick={() => actions.setTab(tab.id)} 
-            className={`flex flex-col items-center gap-1 p-2 ${activeTab === tab.id ? 'text-indigo-600' : ''}`}
+            className={`flex flex-col items-center gap-1 p-2 relative ${activeTab === tab.id ? 'text-indigo-600' : ''}`}
           >
-            <Icon name={tab.icon} className="w-6 h-6" /> {tab.label}
+            <div className="relative">
+                <Icon name={tab.icon} className="w-6 h-6" />
+                {/* 紅點顯示邏輯 */}
+                {tab.hasNotif && (
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
+                )}
+            </div>
+            {tab.label}
           </button>
         ))}
       </div>
 
-      {/* Modals */}
+      {/* Modals - 歷史模式下不應該能打開大部分 Modal，但這裡簡單保留 */}
       <Modal isOpen={taskModal.isOpen} onClose={() => setTaskModal({ ...taskModal, isOpen: false })} title="新增任務">
         <div className="space-y-3">
           <input className="w-full p-2 border rounded-lg" placeholder="標題" value={taskModal.data.title} onChange={e => setTaskModal({ ...taskModal, data: { ...taskModal.data, title: e.target.value } })} />
