@@ -5,7 +5,7 @@ import { Card } from '../components/ui/Card';
 import { Icon } from '../components/Icons';
 import { AdminConsole } from '../components/AdminConsole';
 
-export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin, onReview, onInitialize }) => {
+export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin, onReview, onInitialize, onHardReset, isHistoryMode }) => {
   const [historySort, setHistorySort] = useState('desc');
   const [showHistory, setShowHistory] = useState(false);
   const [showStats, setShowStats] = useState(false);
@@ -16,7 +16,7 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
     const processed = isAdmin ? submissions.filter(s => s.status !== 'pending') : [];
     
     const wStats = [];
-    if (!isAdmin) {
+    if (!isAdmin || isHistoryMode) { 
       const taskMap = {}; 
       tasks.forEach(t => {
         const w = t.week || 'Other';
@@ -36,7 +36,7 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
       Object.values(taskMap).sort((a, b) => parseInt(b.week) - parseInt(a.week)).forEach(s => wStats.push(s));
     }
     return { mySubs: my, pendingSubs: pending, processedSubs: processed, weeklyStats: wStats };
-  }, [tasks, submissions, currentUser, isAdmin]);
+  }, [tasks, submissions, currentUser, isAdmin, isHistoryMode]);
 
   const sortedHistoryWeeks = useMemo(() => {
     return [...new Set(mySubs.map(s => s.week))].sort((a,b) => {
@@ -46,16 +46,18 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
     });
   }, [mySubs, historySort]);
 
+  // 判斷是否顯示「初始化」按鈕：只有當沒有任務資料時才視為空系統
+  const showInitButton = tasks.length === 0;
+
   return (
     <div className="animate-fadeIn space-y-6">
       <Card className="text-center">
         <h2 className="font-black text-xl text-slate-800 break-all">{currentUser.uid}</h2>
         <div className="text-xs text-gray-400 mb-4">{isAdmin ? 'Administrator' : 'Trainer'}</div>
-        {!isAdmin && (
+        {(!isAdmin || isHistoryMode) && (
           <>
             <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4 mb-4">
               <div>
-                {/* 修正 1: 確保分數顯示為數字，避免空白 */}
                 <div className="text-2xl font-black text-indigo-600">{(currentUser.points || 0)}</div>
                 <div className="text-[10px] text-gray-400 uppercase font-bold">總積分</div>
               </div>
@@ -96,10 +98,12 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
             </div>
           </>
         )}
-        <Button variant="danger" onClick={onLogout} className="w-full bg-white border border-red-100" icon="LogOut">登出</Button>
+        {!isHistoryMode && (
+            <Button variant="danger" onClick={onLogout} className="w-full bg-white border border-red-100" icon="LogOut">登出</Button>
+        )}
       </Card>
 
-      {!isAdmin && mySubs.length > 0 && (
+      {(!isAdmin || isHistoryMode) && mySubs.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <h3 className="font-bold text-slate-700 text-sm ml-1">提交紀錄</h3>
@@ -126,7 +130,7 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
         </div>
       )}
 
-      {isAdmin && (
+      {isAdmin && !isHistoryMode && (
         <AdminConsole 
           pendingSubs={pendingSubs} 
           processedSubs={processedSubs} 
@@ -137,15 +141,32 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
         />
         
       )}
-      {isAdmin && (
-          <div className="mt-4 text-center">
-              <button 
-                  // 修正 2: 改用 props 傳入的 onInitialize
-                  onClick={() => window.confirm("確定要初始化？這會建立預設遊戲與設定檔") && onInitialize()}
-                  className="text-xs text-gray-400 hover:text-gray-600 underline"
-              >
-                  [系統] 初始化資料庫 (僅第一次使用)
-              </button>
+      
+      {isAdmin && !isHistoryMode && (
+          <div className="mt-8 space-y-3">
+              {/* 只有在系統空白時才顯示初始化按鈕 */}
+              {showInitButton && (
+                  <div className="text-center">
+                      <div className="mb-2 text-xs text-gray-400">系統尚未偵測到任務資料</div>
+                      <Button 
+                          variant="ghost"
+                          onClick={() => window.confirm("確定要初始化？將建立預設資料。") && onInitialize()}
+                          className="w-full text-xs text-indigo-500 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200"
+                      >
+                          [系統] 快速初始化
+                      </Button>
+                  </div>
+              )}
+
+              {/* 強制重置按鈕 (放置於底部) */}
+              <div className="pt-4 border-t border-gray-100 text-center">
+                  <button 
+                      onClick={onHardReset}
+                      className="text-[10px] text-red-300 hover:text-red-500 underline transition-colors"
+                  >
+                      [危險] 強制重置整個系統 (Hard Reset)
+                  </button>
+              </div>
           </div>
       )}
     </div>

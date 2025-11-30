@@ -3,7 +3,7 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Icon } from '../components/Icons';
 
-export const AnnouncementView = ({ announcements, isAdmin, onOpenAdd, onDelete, onOpenEdit, currentSeason }) => {
+export const AnnouncementView = ({ announcements, isAdmin, onOpenAdd, onDelete, onOpenEdit, currentSeason, isHistoryMode }) => {
   const [viewingImg, setViewingImg] = useState(null);
   const [expandedIds, setExpandedIds] = useState({});
 
@@ -15,7 +15,7 @@ export const AnnouncementView = ({ announcements, isAdmin, onOpenAdd, onDelete, 
     <div className="space-y-4 animate-fadeIn">
       <div className="flex items-center justify-between">
         <h2 className="font-bold text-slate-700 text-lg">戰隊公告</h2>
-        {isAdmin && (
+        {isAdmin && !isHistoryMode && (
           <Button variant="primary" className="text-xs px-3 py-1.5" onClick={onOpenAdd} icon="Edit2">
             發佈貼文
           </Button>
@@ -50,7 +50,7 @@ export const AnnouncementView = ({ announcements, isAdmin, onOpenAdd, onDelete, 
                       <div className="text-[10px] text-gray-400">{new Date(anc.timestamp).toLocaleString()}</div>
                     </div>
                   </div>
-                  {isAdmin && (
+                  {isAdmin && !isHistoryMode && (
                     <div className="flex gap-1 z-10 mr-1" onClick={(e) => e.stopPropagation()}>
                       <button onClick={() => onOpenEdit(anc)} className="text-gray-300 hover:text-blue-500 p-1 transition-colors">
                         <Icon name="Edit2" className="w-4 h-4" />
@@ -74,7 +74,7 @@ export const AnnouncementView = ({ announcements, isAdmin, onOpenAdd, onDelete, 
                               src={url} 
                               className="w-full h-full object-cover max-h-[300px] hover:opacity-90 transition-opacity" 
                               alt="announcement" 
-                              loading="lazy" // 優化：延遲載入
+                              loading="lazy" 
                             />
                           </div>
                         ))}

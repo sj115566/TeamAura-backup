@@ -4,7 +4,7 @@ import { Badge } from '../components/ui/Badge';
 import { Card } from '../components/ui/Card';
 import { Icon } from '../components/Icons';
 
-export const TaskListView = ({ tasks, submissions, currentUser, isAdmin, expandedWeeks, onToggleWeek, onOpenSubmit, onDeleteTask, onOpenWithdraw, onOpenEditTask }) => {
+export const TaskListView = ({ tasks, submissions, currentUser, isAdmin, expandedWeeks, onToggleWeek, onOpenSubmit, onDeleteTask, onOpenWithdraw, onOpenEditTask, isHistoryMode }) => {
   const [sortOrder, setSortOrder] = useState('desc');
 
   const groupedTasks = useMemo(() => {
@@ -37,7 +37,7 @@ export const TaskListView = ({ tasks, submissions, currentUser, isAdmin, expande
             <Icon name={sortOrder === 'desc' ? "ArrowDown" : "ArrowUp"} className="w-4 h-4" />
           </button>
         </div>
-        {isAdmin && (
+        {isAdmin && !isHistoryMode && (
           <Button variant="primary" className="text-xs px-3 py-1.5" onClick={onOpenEditTask} icon="Plus">
             新增
           </Button>
@@ -75,16 +75,18 @@ export const TaskListView = ({ tasks, submissions, currentUser, isAdmin, expande
                       </div>
                       <div className="flex justify-end w-full sm:w-auto">
                         {isAdmin ? (
-                          <Button variant="danger" className="p-2 rounded-lg" onClick={() => onDeleteTask(task.id)}>
-                            <Icon name="Trash2" className="w-4 h-4" />
-                          </Button>
+                          !isHistoryMode && (
+                            <Button variant="danger" className="p-2 rounded-lg" onClick={() => onDeleteTask(task.id)}>
+                              <Icon name="Trash2" className="w-4 h-4" />
+                            </Button>
+                          )
                         ) : (
                           !isDone ? (
-                            <Button variant="primary" className="text-xs px-4 py-1.5 w-full sm:w-auto" onClick={() => onOpenSubmit(task)}>回報</Button>
+                            !isHistoryMode && <Button variant="primary" className="text-xs px-4 py-1.5 w-full sm:w-auto" onClick={() => onOpenSubmit(task)}>回報</Button>
                           ) : (
                             <div className="flex flex-col items-end gap-1">
                               <Badge color={status === 'approved' ? 'green' : 'yellow'}>{status === 'approved' ? '已通過' : '審核中'}</Badge>
-                              {status === 'pending' && <button onClick={() => onOpenWithdraw(mySub.id)} className="text-[10px] text-red-400 hover:text-red-600 underline font-bold">撤回</button>}
+                              {status === 'pending' && !isHistoryMode && <button onClick={() => onOpenWithdraw(mySub.id)} className="text-[10px] text-red-400 hover:text-red-600 underline font-bold">撤回</button>}
                             </div>
                           )
                         )}

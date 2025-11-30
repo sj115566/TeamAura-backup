@@ -3,7 +3,7 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Icon } from '../components/Icons';
 
-export const ReportView = ({ tasks, users, submissions, onArchiveSeason }) => {
+export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHistoryMode, onExport }) => {
   const { weeks, rows } = useMemo(() => {
     // 過濾掉管理員，只顯示一般成員
     const reportUsers = users.filter(u => !u.isAdmin);
@@ -60,14 +60,22 @@ export const ReportView = ({ tasks, users, submissions, onArchiveSeason }) => {
     <div className="animate-fadeIn space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="font-bold text-slate-700 text-lg">積分統整表</h2>
-        <Button 
-          variant="danger" 
-          className="text-xs py-1.5" 
-          onClick={onArchiveSeason} 
-          icon="Archive"
-        >
-          重置賽季
-        </Button>
+        <div className="flex gap-2">
+            {/* 新增匯出按鈕 */}
+            <Button variant="secondary" className="text-xs py-1.5" onClick={onExport} icon="ArrowDown">匯出</Button>
+            
+            {/* 只有在非歷史模式下顯示重置按鈕 */}
+            {!isHistoryMode && (
+                <Button 
+                variant="danger" 
+                className="text-xs py-1.5" 
+                onClick={onArchiveSeason} 
+                icon="Archive"
+                >
+                重置賽季
+                </Button>
+            )}
+        </div>
       </div>
       
       <Card noPadding className="flex flex-col h-[75vh]">

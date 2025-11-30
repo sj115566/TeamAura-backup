@@ -19,7 +19,11 @@ import { AnnouncementView } from './views/AnnouncementView';
 
 const AppContent = () => {
   const { state, actions, sortedUsers, dialog, setDialog } = useAppManager();
-  const { tasks, submissions, users, currentUser, activeTab, loading, expandedWeeks, seasonName, announcements, games } = state;
+  // 解構新的狀態
+  const { 
+      tasks, submissions, users, currentUser, activeTab, loading, expandedWeeks, 
+      announcements, games, selectedSeason, availableSeasons, isHistoryMode 
+  } = state;
 
   const [taskModal, setTaskModal] = useState({ isOpen: false, data: { title: '', points: 10, icon: '🐾', description: '', week: '1', type: 'fixed' } });
   const [submitModal, setSubmitModal] = useState({ isOpen: false, task: null, proof: '', images: [] });
@@ -80,11 +84,7 @@ const AppContent = () => {
     return (
       <>
         <LoadingOverlay isLoading={loading} />
-        <LoginView 
-            onLogin={actions.login} 
-            loading={loading} 
-            onInitialize={actions.initializeSystem} 
-        />
+        <LoginView onLogin={actions.login} loading={loading} onInitialize={actions.initializeSystem} />
       </>
     );
   }
@@ -93,16 +93,24 @@ const AppContent = () => {
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-24 font-sans">
       <LoadingOverlay isLoading={loading} />
       
-      {/* Header */}
-      <div className="bg-white sticky top-0 z-40 shadow-sm px-4 py-3 flex justify-between items-center border-b border-gray-100 safe-area-top">
+      {/* Header - 根據歷史模式改變顏色 */}
+      <div className={`sticky top-0 z-40 shadow-sm px-4 py-3 flex justify-between items-center border-b border-gray-100 safe-area-top transition-colors duration-300 ${isHistoryMode ? 'bg-yellow-50 border-yellow-200' : 'bg-white'}`}>
         <div className="flex items-center gap-2">
           <div className="font-black text-lg text-indigo-600">Team Aura</div>
           {currentUser.isAdmin && <Badge color="indigo">ADMIN</Badge>}
-          {seasonName && <span className="text-xs font-bold text-gray-500 border-l border-gray-300 pl-2">{seasonName}</span>}
+          
+          {/* 賽季選擇器 */}
+          <select 
+            value={selectedSeason || ''}
+            onChange={(e) => actions.setSeason(e.target.value)}
+            className={`text-xs font-bold border-l pl-2 outline-none bg-transparent cursor-pointer ${isHistoryMode ? 'text-yellow-700 border-yellow-400' : 'text-gray-500 border-gray-300'}`}
+          >
+            {availableSeasons.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          {isHistoryMode && <Badge color="yellow">歷史模式</Badge>}
         </div>
         <div className="flex items-center gap-2">
-          {/* 修正 1: 加上 || 0 確保有點數顯示 */}
-          {!currentUser.isAdmin && <Badge color="indigo" className="text-sm">{(currentUser.points || 0)} pts</Badge>}
+          {!currentUser.isAdmin && <Badge color={isHistoryMode ? "yellow" : "indigo"} className="text-sm">{(currentUser.points || 0)} pts</Badge>}
           <button onClick={actions.refresh} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
             <Icon name="RefreshCw" className={`w-4 h-4 ${state.refreshing ? 'animate-spin' : ''}`} />
           </button>
@@ -111,11 +119,20 @@ const AppContent = () => {
 
       {/* Content Area */}
       <div className={`w-full mx-auto px-3 sm:px-4 py-4 space-y-6 ${activeTab === 'report' ? 'max-w-[95vw]' : 'max-w-3xl'}`}>
+        
+        {/* 歷史模式全域提示 */}
+        {isHistoryMode && (
+            <div className="bg-yellow-100 text-yellow-800 p-2 text-xs text-center rounded-lg font-bold border border-yellow-200">
+                ⚠️ 您正在檢視歷史賽季資料，僅供查閱，無法進行編輯或提交。
+            </div>
+        )}
+
         {activeTab === 'announcements' && (
           <AnnouncementView 
             announcements={announcements} 
             isAdmin={currentUser.isAdmin} 
-            currentSeason={seasonName}
+            currentSeason={selectedSeason}
+            isHistoryMode={isHistoryMode} // 傳遞歷史模式
             onOpenAdd={() => setAnnounceModal({ isOpen: true, id: null, title: '', content: '', images: [] })} 
             onOpenEdit={(anc) => setAnnounceModal({ isOpen: true, id: anc.id, title: anc.title, content: anc.content, images: JSON.parse(anc.images || '[]') })}
             onDelete={actions.deleteAnnouncement}
@@ -125,6 +142,7 @@ const AppContent = () => {
           <TaskListView 
             tasks={tasks} submissions={submissions} currentUser={currentUser} isAdmin={currentUser.isAdmin} 
             expandedWeeks={expandedWeeks} onToggleWeek={actions.toggleWeek} onDeleteTask={actions.deleteTask} onOpenWithdraw={actions.withdraw}
+            isHistoryMode={isHistoryMode} // 傳遞歷史模式
             onOpenSubmit={(t) => setSubmitModal({ isOpen: true, task: t, proof: '', images: [], rawFiles: [] })}
             onOpenEditTask={() => setTaskModal({ isOpen: true, data: { title: '', points: 10, icon: '🐾', description: '', week: '1', type: 'fixed' } })}
           />
@@ -134,16 +152,19 @@ const AppContent = () => {
           <ReportView 
             tasks={tasks} users={users} submissions={submissions} 
             onArchiveSeason={() => setArchiveModal({ isOpen: true, newSeasonName: '' })} 
+            isHistoryMode={isHistoryMode} // 傳遞歷史模式
+            onExport={actions.exportReport} // 匯出報表
           />
         )}
         {activeTab === 'profile' && (
           <ProfileView 
             currentUser={currentUser} tasks={tasks} submissions={submissions} 
             isAdmin={currentUser.isAdmin} 
+            isHistoryMode={isHistoryMode} // 傳遞歷史模式
             onLogout={actions.logout} 
             onReview={actions.review} 
-            // 修正 2: 傳遞初始化函式
             onInitialize={actions.initializeSystem}
+            onHardReset={actions.hardResetSystem}
           />
         )}
         {activeTab === 'game' && (
