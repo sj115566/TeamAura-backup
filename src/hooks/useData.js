@@ -19,24 +19,44 @@ export const useData = (currentUser, updateCurrentUser) => {
     return selectedSeason && selectedSeason !== currentSeason;
   }, [selectedSeason, currentSeason]);
 
-  // 1. 監聽系統設定
+  // 1. 監聽系統設定 (這是全域設定，理論上所有登入使用者都該讀得到)
   useEffect(() => {
     const unsubSettings = onSnapshot(doc(db, "system", "config"), (doc) => {
         if (doc.exists()) {
             const data = doc.data();
-            const curr = data.currentSeason || "未設定賽季";
+            const curr = data.currentSeason || "第一賽季"; // 給予預設值
+            
+            // 更新當前賽季
             setCurrentSeason(curr);
             
+            // 整理所有可用賽季
+            // 邏輯：資料庫存的歷史列表 + 當前賽季
             const past = data.availableSeasons || [];
             const all = Array.from(new Set([...past, curr]));
+            
             setAvailableSeasons(all);
 
-            // 如果尚未選擇賽季，預設選當前賽季
-            if (!selectedSeason) setSelectedSeason(curr);
+            // 如果使用者還沒選過賽季，預設選當前賽季
+            // 注意：這裡使用 functional update 避免依賴閉包中的舊 selectedSeason
+            setSelectedSeason(prev => {
+                // 如果之前沒選過，或是選的賽季不在列表內(罕見)，就切回當前
+                if (!prev || !all.includes(prev)) return curr;
+                return prev;
+            });
+        } else {
+            // 如果 config 文件不存在 (系統剛建立)，預設為第一賽季
+            setCurrentSeason("第一賽季");
+            setAvailableSeasons(["第一賽季"]);
+            setSelectedSeason("第一賽季");
         }
+    }, (error) => {
+        console.error("系統設定讀取失敗 (權限不足?):", error);
+        // 如果讀取失敗 (例如權限問題)，至少讓使用者能看到預設值，避免 UI 壞掉
+        setCurrentSeason("無法讀取");
     });
+
     return () => unsubSettings();
-  }, [selectedSeason]);
+  }, []); // 移除 selectedSeason 依賴，只在掛載時監聽一次即可
 
   // 2. 主資料監聽
   useEffect(() => {
@@ -63,8 +83,7 @@ export const useData = (currentUser, updateCurrentUser) => {
         setTasks(filteredTasks);
       });
 
-      // B. 公告處理 (改為 Frontend Filtering 以解決 Index Error)
-      // 只依時間排序，抓取最近 50 筆，然後在前端篩選賽季
+      // B. 公告處理 (Frontend Filtering)
       const ancQ = query(collection(db, "announcements"), orderBy("timestamp", "desc"), limit(50));
       unsubAnc = onSnapshot(ancQ, (snapshot) => {
           const allAnc = snapshot.docs.map(d => ({ ...d.data(), firestoreId: d.id }));
@@ -73,12 +92,9 @@ export const useData = (currentUser, updateCurrentUser) => {
           setAnnouncements(filteredAnc);
       });
 
-      // C. 提交紀錄與使用者積分 (Submissions & Users)
+      // C. 提交紀錄與使用者積分
       if (!isHistoryMode) {
         // === 當前賽季 (Live Mode) ===
-        
-        // 1. Submissions: 需依賴索引 (season + timestamp)
-        // 管理員讀取更多以確保報表準確，一般人只讀 100 筆以節省流量
         const limitCount = currentUser?.isAdmin ? 1000 : 100;
         
         const subQ = query(
@@ -87,14 +103,13 @@ export const useData = (currentUser, updateCurrentUser) => {
             orderBy("timestamp", "desc"), 
             limit(limitCount)
         );
+        
         unsubSubs = onSnapshot(subQ, (s) => {
             setSubmissions(s.docs.map(d => ({ ...d.data(), firestoreId: d.id })));
         }, (error) => {
-            console.error("Submission fetch error (Index required):", error);
-            // 如果報錯，暫時不更新，避免白畫面
+            console.error("Submission fetch error:", error);
         });
 
-        // 2. Users: 直接讀取資料庫的 points
         unsubUsers = onSnapshot(query(collection(db, "users")), (snapshot) => {
             const usersData = snapshot.docs.map(doc => {
                 const data = doc.data();
@@ -107,7 +122,6 @@ export const useData = (currentUser, updateCurrentUser) => {
             });
             setUsers(usersData);
             
-            // 同步自己的狀態
             if (currentUser) {
                 const freshMe = usersData.find(u => u.username === currentUser.username);
                 if (freshMe && (freshMe.points !== (currentUser.points || 0) || freshMe.isAdmin !== currentUser.isAdmin)) {
