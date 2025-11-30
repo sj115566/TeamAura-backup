@@ -46,7 +46,6 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
     });
   }, [mySubs, historySort]);
 
-  // 判斷是否顯示「初始化」按鈕：只有當沒有任務資料時才視為空系統
   const showInitButton = tasks.length === 0;
 
   return (
@@ -130,7 +129,8 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
         </div>
       )}
 
-      {isAdmin && !isHistoryMode && (
+      {/* 修正：在 isAdmin 成立時，無論是否為歷史模式都顯示，但在內部由 AdminConsole 判斷行為 */}
+      {isAdmin && (
         <AdminConsole 
           pendingSubs={pendingSubs} 
           processedSubs={processedSubs} 
@@ -138,13 +138,12 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
           onReview={onReview} 
           showHistory={showHistory} 
           toggleHistory={() => setShowHistory(!showHistory)} 
+          isHistoryMode={isHistoryMode} // 傳遞參數
         />
-        
       )}
       
       {isAdmin && !isHistoryMode && (
           <div className="mt-8 space-y-3">
-              {/* 只有在系統空白時才顯示初始化按鈕 */}
               {showInitButton && (
                   <div className="text-center">
                       <div className="mb-2 text-xs text-gray-400">系統尚未偵測到任務資料</div>
@@ -158,7 +157,6 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
                   </div>
               )}
 
-              {/* 強制重置按鈕 (放置於底部) */}
               <div className="pt-4 border-t border-gray-100 text-center">
                   <button 
                       onClick={onHardReset}
