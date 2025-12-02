@@ -3,8 +3,9 @@ import { Card } from '../components/ui/Card';
 import { Icon } from '../components/Icons';
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge'; 
 
-export const LeaderboardView = ({ users, currentUser, seasonGoal = 10000, seasonGoalTitle = "Sub Goal (Season Total)", onUpdateGoal }) => {
+export const LeaderboardView = ({ users, currentUser, seasonGoal = 10000, seasonGoalTitle = "Sub Goal (Season Total)", onUpdateGoal, roles, onEditUserRole }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(seasonGoalTitle);
   const [editScore, setEditScore] = useState(seasonGoal);
@@ -28,6 +29,12 @@ export const LeaderboardView = ({ users, currentUser, seasonGoal = 10000, season
         onUpdateGoal(editScore, editTitle);
         setIsEditing(false);
     }
+  };
+
+  // 輔助函數：取得身分標籤資料
+  const getUserRoleBadges = (userRoles) => {
+    if (!userRoles || !roles) return [];
+    return roles.filter(r => userRoles.includes(r.code));
   };
 
   return (
@@ -82,15 +89,37 @@ export const LeaderboardView = ({ users, currentUser, seasonGoal = 10000, season
           const rank = index + 1;
           // 檢查是否為自己，給予高亮背景
           const isMe = u.uid === currentUser.uid;
+          const userRoleBadges = getUserRoleBadges(u.roles);
           
           return (
             <div 
               key={u.uid} 
-              className={`p-4 flex items-center justify-between border-b border-gray-50 last:border-0 ${isMe ? 'bg-indigo-50/50' : ''}`}
+              // 如果是管理員，點擊使用者列可以編輯身分
+              onClick={() => currentUser.isAdmin && onEditUserRole && onEditUserRole(u.uid, u.roles)}
+              className={`p-4 flex items-center justify-between border-b border-gray-50 last:border-0 transition-colors ${isMe ? 'bg-indigo-50/50' : ''} ${currentUser.isAdmin ? 'cursor-pointer hover:bg-gray-50' : ''}`}
             >
               <div className="flex items-center gap-4">
                 <div className={`font-black w-6 text-center ${rank <= 3 ? 'text-yellow-500 text-lg' : 'text-gray-300'}`}>{rank}</div>
-                <div className="font-bold text-slate-700 break-all">{u.uid}</div>
+                <div className="flex flex-col">
+                    <div className="font-bold text-slate-700 break-all flex items-center gap-2">
+                        {u.uid}
+                        <div className="flex gap-1 flex-wrap">
+                            {userRoleBadges.map(role => (
+                                <span 
+                                    key={role.code}
+                                    className="text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap"
+                                    style={{
+                                        backgroundColor: role.color ? `${role.color}15` : '#f3f4f6', 
+                                        color: role.color || '#6b7280',
+                                        borderColor: role.color ? `${role.color}40` : '#e5e7eb'
+                                    }}
+                                >
+                                    {role.label}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                </div>
               </div>
               <div className="font-mono font-bold text-slate-800">{u.points}</div>
             </div>

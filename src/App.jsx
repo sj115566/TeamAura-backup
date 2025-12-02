@@ -22,7 +22,7 @@ const AppContent = () => {
   const { 
       tasks, submissions, users, currentUser, activeTab, loading, expandedWeeks, 
       announcements, games, selectedSeason, availableSeasons, isHistoryMode,
-      needRefresh, notifications, seasonGoal, seasonGoalTitle // 新增 seasonGoalTitle
+      needRefresh, notifications, seasonGoal, seasonGoalTitle, roles // 確保這裡有解構出 roles
   } = state;
 
   const [taskModal, setTaskModal] = useState({ isOpen: false, data: { title: '', points: 10, icon: '🐾', description: '', week: '1', type: 'fixed' } });
@@ -30,6 +30,7 @@ const AppContent = () => {
   const [archiveModal, setArchiveModal] = useState({ isOpen: false, newSeasonName: '' });
   const [announceModal, setAnnounceModal] = useState({ isOpen: false, id: null, title: '', content: '', images: [] });
   const [gameModal, setGameModal] = useState({ isOpen: false, id: null, title: '', url: '', icon: '' });
+  const [userRoleModal, setUserRoleModal] = useState({ isOpen: false, uid: null, roles: [] });
 
   const fileInputRef = useRef(null);
   const announceFileRef = useRef(null);
@@ -80,6 +81,12 @@ const AppContent = () => {
     if (success) setGameModal({ isOpen: false, id: null, title: '', url: '', icon: '' });
   };
 
+  const handleUpdateUserRoles = async () => {
+      if (!userRoleModal.uid) return;
+      await actions.updateUserRoles(userRoleModal.uid, userRoleModal.roles);
+      setUserRoleModal({ isOpen: false, uid: null, roles: [] });
+  };
+
   if (!currentUser) {
     return (
       <>
@@ -99,7 +106,6 @@ const AppContent = () => {
           <div className="font-black text-lg text-indigo-600">Team Aura</div>
           {currentUser.isAdmin && <Badge color="indigo">ADMIN</Badge>}
           
-          {/* 賽季選擇器：所有使用者皆可見 */}
           <div className="relative flex items-center">
             <select 
                 value={selectedSeason || ''}
@@ -113,7 +119,6 @@ const AppContent = () => {
                     <option>載入中...</option>
                 )}
             </select>
-            {/* 自訂下拉箭頭以確保視覺一致性 */}
             <div className="pointer-events-none absolute right-0 flex items-center px-1 text-gray-500">
                 <Icon name="ChevronDown" className="h-3 w-3" />
             </div>
@@ -125,7 +130,6 @@ const AppContent = () => {
         <div className="flex items-center gap-2">
           {!currentUser.isAdmin && <Badge color={isHistoryMode ? "yellow" : "indigo"} className="text-sm">{(currentUser.points || 0)} pts</Badge>}
           
-          {/* Refresh 按鈕 */}
           <button onClick={actions.refresh} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors relative">
             <Icon name="RefreshCw" className={`w-4 h-4 ${state.refreshing ? 'animate-spin' : ''}`} />
             {needRefresh && (
@@ -184,6 +188,8 @@ const AppContent = () => {
             seasonGoal={seasonGoal} 
             seasonGoalTitle={seasonGoalTitle}
             onUpdateGoal={actions.updateSeasonGoal}
+            roles={roles} // 傳遞 roles
+            onEditUserRole={(uid, currentRoles) => setUserRoleModal({ isOpen: true, uid, roles: currentRoles || [] })}
           />
         )}
         {activeTab === 'report' && currentUser.isAdmin && (
@@ -203,6 +209,10 @@ const AppContent = () => {
             onReview={actions.review} 
             onInitialize={actions.initializeSystem}
             onHardReset={actions.hardResetSystem}
+            roles={roles}
+            onAddRole={actions.addRole}
+            onUpdateRole={actions.updateRole}
+            onDeleteRole={actions.deleteRole}
           />
         )}
         {activeTab === 'game' && (
@@ -294,6 +304,39 @@ const AppContent = () => {
             <input className="w-full p-2 border rounded-lg" placeholder="新賽季名稱" value={archiveModal.newSeasonName} onChange={e => setArchiveModal({ ...archiveModal, newSeasonName: e.target.value })} />
             <Button variant="danger" onClick={() => { if(archiveModal.newSeasonName) actions.archive(archiveModal.newSeasonName).then(() => setArchiveModal({...archiveModal, isOpen: false})); }} className="w-full">確認重置</Button>
          </div>
+      </Modal>
+
+      {/* 使用者身分編輯 Modal - 加入防呆檢查 */}
+      <Modal isOpen={userRoleModal.isOpen} onClose={() => setUserRoleModal({ ...userRoleModal, isOpen: false })} title={`設定身分: ${userRoleModal.uid}`}>
+          <div className="space-y-4">
+              <div className="bg-indigo-50 p-3 rounded-lg text-xs text-indigo-700 mb-2">
+                  勾選此使用者擁有的身分組 (可多選)
+              </div>
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                  {(roles || []).map(role => (
+                      <label key={role.code} className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                          <div className="flex items-center gap-2">
+                              <span style={{color: role.color}} className="font-bold">{role.label}</span>
+                              <span className="text-xs text-gray-400">x{role.multiplier}</span>
+                          </div>
+                          <input 
+                              type="checkbox" 
+                              checked={(userRoleModal.roles || []).includes(role.code)}
+                              onChange={(e) => {
+                                  const currentRoles = userRoleModal.roles || [];
+                                  const newRoles = e.target.checked 
+                                      ? [...currentRoles, role.code]
+                                      : currentRoles.filter(r => r !== role.code);
+                                  setUserRoleModal({ ...userRoleModal, roles: newRoles });
+                              }}
+                              className="w-5 h-5 accent-indigo-600"
+                          />
+                      </label>
+                  ))}
+                  {(!roles || roles.length === 0) && <div className="text-center text-gray-400 text-sm">請先至個人頁面建立身分組</div>}
+              </div>
+              <Button onClick={handleUpdateUserRoles} className="w-full">儲存設定</Button>
+          </div>
       </Modal>
 
       <ConfirmDialog {...dialog} onCancel={() => setDialog({ ...dialog, isOpen: false })} />

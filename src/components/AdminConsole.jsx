@@ -103,27 +103,48 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
           {!isHistoryMode && <h4 className="font-bold text-sm mb-3 text-slate-300">歷史紀錄 & 修正</h4>}
           
           <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
-            {processedSubs.map(sub => (
-              <div key={sub.id} className="bg-slate-700/50 p-3 rounded-lg flex justify-between items-center text-xs border border-slate-700">
-                <div className="flex-1">
-                  <div className="flex gap-2 mb-1">
-                    <span className="font-bold text-slate-200">{sub.uid}</span>
-                    <Badge color={sub.status==='approved'?'green':'red'}>{sub.status}</Badge>
+            {processedSubs.map(sub => {
+              // 判斷是否有原始分數 (basePoints) 且與最終分數 (points) 不同
+              const hasBasePoints = sub.basePoints !== undefined && sub.basePoints !== null;
+              const isDifferent = hasBasePoints && Number(sub.basePoints) !== Number(sub.points);
+              const isApproved = sub.status === 'approved';
+
+              return (
+                <div key={sub.id} className="bg-slate-700/50 p-3 rounded-lg flex justify-between items-center text-xs border border-slate-700">
+                  <div className="flex-1">
+                    <div className="flex gap-2 mb-1 items-center">
+                      <span className="font-bold text-slate-200">{sub.uid}</span>
+                      <Badge color={sub.status==='approved'?'green':'red'}>{sub.status}</Badge>
+                    </div>
+                    <div className="text-slate-400 truncate">{sub.taskTitle}</div>
+                    {/* 顯示分數詳情 */}
+                    {isApproved && (
+                      <div className="mt-1 text-[10px] text-slate-500">
+                        {isDifferent ? (
+                          <>
+                            原始: <span className="text-slate-300">{sub.basePoints}</span> 
+                            {' '}<Icon name="ArrowRight" className="w-2 h-2 inline mx-0.5" />{' '}
+                            加成後: <span className="text-indigo-400 font-bold">{sub.points}</span>
+                          </>
+                        ) : (
+                          <>得分: <span className="text-slate-300">{sub.points}</span></>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div className="text-slate-400 truncate">{sub.taskTitle}</div>
+                  
+                  {/* 歷史模式下不顯示編輯按鈕 */}
+                  {!isHistoryMode && (
+                    <button 
+                      onClick={() => setEditSub(sub)} 
+                      className="p-2 bg-slate-600 hover:bg-indigo-500 rounded text-white transition-colors ml-2"
+                    >
+                      <Icon name="Edit2" className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
-                
-                {/* 歷史模式下不顯示編輯按鈕 */}
-                {!isHistoryMode && (
-                  <button 
-                    onClick={() => setEditSub(sub)} 
-                    className="p-2 bg-slate-600 hover:bg-indigo-500 rounded text-white transition-colors"
-                  >
-                    <Icon name="Edit2" className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-            ))}
+              );
+            })}
             {processedSubs.length === 0 && <div className="text-center text-slate-500 text-xs py-2">無歷史紀錄</div>}
           </div>
         </div>
@@ -153,11 +174,19 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
             </div>
             {editSub.status === 'approved' && (
               <div>
-                <label className="text-xs font-bold text-gray-500">分數</label>
+                <label className="text-xs font-bold text-gray-500">
+                  原始分數 (Base Points)
+                  <span className="font-normal text-gray-400 ml-1">- 系統會自動計算加成</span>
+                </label>
                 <input 
                   type="number" 
-                  value={editSub.points} 
-                  onChange={e => setEditSub({...editSub, points: e.target.value})} 
+                  // 這裡綁定的是 points，但為了邏輯一致，如果我们要「修正」，
+                  // 應該是修正 basePoints，然後讓系統重算。
+                  // 但原本的 review 函式接收的是 points 參數並將其視為 basePoints (如果 approved)
+                  // 所以這裡直接顯示目前的 points (若是舊資料沒有 basePoints) 或 basePoints
+                  // 為了簡化，我們讓管理員輸入「想要給的基礎分」
+                  value={editSub.basePoints !== undefined ? editSub.basePoints : editSub.points} 
+                  onChange={e => setEditSub({...editSub, points: e.target.value, basePoints: e.target.value})} 
                   className="w-full p-2 border rounded mt-1 outline-none focus:border-indigo-500"
                 />
               </div>
@@ -165,7 +194,11 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
             <Button 
               variant="primary" 
               className="w-full" 
-              onClick={() => { onReview(editSub.id, 'update', editSub.points, editSub.status); setEditSub(null); }}
+              onClick={() => { 
+                // 這裡傳入的 editSub.points 會被 useAdmin 的 review 函式當作 basePoints 處理
+                onReview(editSub.id, 'update', editSub.points, editSub.status); 
+                setEditSub(null); 
+              }}
             >
               確認修正
             </Button>
