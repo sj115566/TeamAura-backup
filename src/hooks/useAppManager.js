@@ -34,7 +34,8 @@ export const useAppManager = () => {
 
   const { 
       tasks, submissions, users, announcements, games, seasonName,
-      currentSeason, selectedSeason, setSelectedSeason, availableSeasons, isHistoryMode 
+      currentSeason, selectedSeason, setSelectedSeason, availableSeasons, isHistoryMode,
+      seasonGoal, seasonGoalTitle // 從 useData 獲取賽季目標與標題
   } = useData(currentUser, updateCurrentUser);
 
   const { actions: adminActions, adminLoading } = useAdmin(currentUser, seasonName, users);
@@ -212,6 +213,9 @@ export const useAppManager = () => {
         const item = games.find(g => g.id === data.id);
         if(item) return adminActions.updateGame(item, data);
     },
+    
+    // 更新目標
+    updateSeasonGoal: adminActions.updateSeasonGoal,
 
     hardResetSystem: () => {
         setDialog({ 
@@ -245,7 +249,9 @@ export const useAppManager = () => {
       activeTab, loading: authLoading || adminLoading || exporting, expandedWeeks, seasonName, refreshing: false, 
       currentSeason, selectedSeason, availableSeasons, isHistoryMode,
       needRefresh,
-      notifications // 輸出通知狀態
+      notifications,
+      seasonGoal, // 傳遞給 View
+      seasonGoalTitle // 傳遞給 View
     },
     actions: {
       login, 

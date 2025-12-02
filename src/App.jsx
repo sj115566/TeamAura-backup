@@ -22,7 +22,7 @@ const AppContent = () => {
   const { 
       tasks, submissions, users, currentUser, activeTab, loading, expandedWeeks, 
       announcements, games, selectedSeason, availableSeasons, isHistoryMode,
-      needRefresh, notifications
+      needRefresh, notifications, seasonGoal, seasonGoalTitle // 新增 seasonGoalTitle
   } = state;
 
   const [taskModal, setTaskModal] = useState({ isOpen: false, data: { title: '', points: 10, icon: '🐾', description: '', week: '1', type: 'fixed' } });
@@ -177,7 +177,15 @@ const AppContent = () => {
             onOpenEditTask={() => setTaskModal({ isOpen: true, data: { title: '', points: 10, icon: '🐾', description: '', week: '1', type: 'fixed' } })}
           />
         )}
-        {activeTab === 'leaderboard' && <LeaderboardView users={sortedUsers} currentUser={currentUser} />}
+        {activeTab === 'leaderboard' && (
+          <LeaderboardView 
+            users={sortedUsers} 
+            currentUser={currentUser} 
+            seasonGoal={seasonGoal} 
+            seasonGoalTitle={seasonGoalTitle}
+            onUpdateGoal={actions.updateSeasonGoal}
+          />
+        )}
         {activeTab === 'report' && currentUser.isAdmin && (
           <ReportView 
             tasks={tasks} users={users} submissions={submissions} 

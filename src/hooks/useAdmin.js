@@ -167,6 +167,14 @@ export const useAdmin = (currentUser, seasonName, users) => {
         await deleteDoc(doc(db, "games", firestoreId)); 
     }),
 
+    // 更新賽季總分目標與標題
+    updateSeasonGoal: (newGoal, newTitle) => execute(async () => {
+        await setDoc(doc(db, "system", "config"), { 
+            seasonGoal: Number(newGoal),
+            seasonGoalTitle: newTitle
+        }, { merge: true });
+    }, "目標設定已更新"),
+
     archive: (newSeasonName) => execute(async () => {
         await setDoc(doc(db, "system", "config"), { 
             currentSeason: newSeasonName,
@@ -208,7 +216,7 @@ export const useAdmin = (currentUser, seasonName, users) => {
         }
 
         const sysRef = doc(db, "system", "config");
-        await setDoc(sysRef, { currentSeason: "第一賽季", availableSeasons: [] }, { merge: true });
+        await setDoc(sysRef, { currentSeason: "第一賽季", availableSeasons: [], seasonGoal: 10000, seasonGoalTitle: "Season Goal" }, { merge: true });
 
         const ancRef = collection(db, "announcements");
         await addDoc(ancRef, { 
@@ -247,7 +255,7 @@ export const useAdmin = (currentUser, seasonName, users) => {
             for(const g of defaultGames) await addDoc(collection(db, "games"), g);
         }
 
-        await setDoc(doc(db, "system", "config"), { currentSeason: "第一賽季", availableSeasons: [] }, { merge: true });
+        await setDoc(doc(db, "system", "config"), { currentSeason: "第一賽季", availableSeasons: [], seasonGoal: 10000, seasonGoalTitle: "Season Goal" }, { merge: true });
 
         const ancRef = collection(db, "announcements");
         if ((await getDocs(ancRef)).empty) {

@@ -2,22 +2,29 @@ import { useState, useEffect, useMemo } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, orderBy, onSnapshot, doc, limit, where, getDocs } from 'firebase/firestore';
 
+
 export const useData = (currentUser, updateCurrentUser) => {
   const [tasks, setTasks] = useState([]);
   const [submissions, setSubmissions] = useState([]);
   const [users, setUsers] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [games, setGames] = useState([]);
-  
+ 
   // 賽季狀態
   const [currentSeason, setCurrentSeason] = useState('載入中...');
   const [availableSeasons, setAvailableSeasons] = useState([]);
   const [selectedSeason, setSelectedSeason] = useState(null);
+ 
+  // 賽季目標分數與標題
+  const [seasonGoal, setSeasonGoal] = useState(1000); // 預設值
+  const [seasonGoalTitle, setSeasonGoalTitle] = useState("Season Goal"); // 預設標題
+
 
   // 判斷是否為歷史模式
   const isHistoryMode = useMemo(() => {
     return selectedSeason && selectedSeason !== currentSeason;
   }, [selectedSeason, currentSeason]);
+
 
   // 1. 監聽系統設定 (這是全域設定，理論上所有登入使用者都該讀得到)
   useEffect(() => {
@@ -25,16 +32,25 @@ export const useData = (currentUser, updateCurrentUser) => {
         if (doc.exists()) {
             const data = doc.data();
             const curr = data.currentSeason || "第一賽季"; // 給予預設值
-            
+           
             // 更新當前賽季
             setCurrentSeason(curr);
-            
+           
+            // 更新賽季目標與標題
+            if (data.seasonGoal) {
+                setSeasonGoal(Number(data.seasonGoal));
+            }
+            if (data.seasonGoalTitle) {
+                setSeasonGoalTitle(data.seasonGoalTitle);
+            }
+           
             // 整理所有可用賽季
             // 邏輯：資料庫存的歷史列表 + 當前賽季
             const past = data.availableSeasons || [];
             const all = Array.from(new Set([...past, curr]));
-            
+           
             setAvailableSeasons(all);
+
 
             // 如果使用者還沒選過賽季，預設選當前賽季
             // 注意：這裡使用 functional update 避免依賴閉包中的舊 selectedSeason
@@ -55,23 +71,28 @@ export const useData = (currentUser, updateCurrentUser) => {
         setCurrentSeason("無法讀取");
     });
 
+
     return () => unsubSettings();
   }, []); // 移除 selectedSeason 依賴，只在掛載時監聽一次即可
+
 
   // 2. 主資料監聽
   useEffect(() => {
     // 即使沒有 currentUser 也允許讀取部分公開資料 (如公告/遊戲)
     if (!selectedSeason) return;
 
+
     let unsubTasks = () => {};
     let unsubSubs = () => {};
     let unsubAnc = () => {};
     let unsubUsers = () => {};
 
+
     // --- 載入遊戲 (不分賽季) ---
     const unsubGames = onSnapshot(collection(db, "games"), (s) => {
       setGames(s.docs.map(d => ({ ...d.data(), firestoreId: d.id })));
     });
+
 
     const fetchData = async () => {
       // A. 任務處理 (Frontend Filtering)
@@ -83,6 +104,7 @@ export const useData = (currentUser, updateCurrentUser) => {
         setTasks(filteredTasks);
       });
 
+
       // B. 公告處理 (Frontend Filtering)
       const ancQ = query(collection(db, "announcements"), orderBy("timestamp", "desc"), limit(50));
       unsubAnc = onSnapshot(ancQ, (snapshot) => {
@@ -92,36 +114,38 @@ export const useData = (currentUser, updateCurrentUser) => {
           setAnnouncements(filteredAnc);
       });
 
+
       // C. 提交紀錄與使用者積分
       if (!isHistoryMode) {
         // === 當前賽季 (Live Mode) ===
         const limitCount = currentUser?.isAdmin ? 1000 : 100;
-        
+       
         const subQ = query(
-            collection(db, "submissions"), 
+            collection(db, "submissions"),
             where("season", "==", selectedSeason),
-            orderBy("timestamp", "desc"), 
+            orderBy("timestamp", "desc"),
             limit(limitCount)
         );
-        
+       
         unsubSubs = onSnapshot(subQ, (s) => {
             setSubmissions(s.docs.map(d => ({ ...d.data(), firestoreId: d.id })));
         }, (error) => {
             console.error("Submission fetch error:", error);
         });
 
+
         unsubUsers = onSnapshot(query(collection(db, "users")), (snapshot) => {
             const usersData = snapshot.docs.map(doc => {
                 const data = doc.data();
-                return { 
-                    ...data, 
-                    uid: data.uid || data.username, 
+                return {
+                    ...data,
+                    uid: data.uid || data.username,
                     points: Number(data.points) || 0,
-                    firestoreId: doc.id 
+                    firestoreId: doc.id
                 };
             });
             setUsers(usersData);
-            
+           
             if (currentUser) {
                 const freshMe = usersData.find(u => u.username === currentUser.username);
                 if (freshMe && (freshMe.points !== (currentUser.points || 0) || freshMe.isAdmin !== currentUser.isAdmin)) {
@@ -130,17 +154,19 @@ export const useData = (currentUser, updateCurrentUser) => {
             }
         });
 
+
       } else {
         // === 歷史賽季 (History Mode) ===
         const subQ = query(
-            collection(db, "submissions"), 
+            collection(db, "submissions"),
             where("season", "==", selectedSeason),
             orderBy("timestamp", "desc")
         );
-        
+       
         unsubSubs = onSnapshot(subQ, (snapshot) => {
             const allSubs = snapshot.docs.map(d => ({ ...d.data(), firestoreId: d.id }));
             setSubmissions(allSubs);
+
 
             // 動態計算歷史積分
             const seasonPointsMap = {};
@@ -150,6 +176,7 @@ export const useData = (currentUser, updateCurrentUser) => {
                     seasonPointsMap[sub.uid] = (seasonPointsMap[sub.uid] || 0) + pts;
                 }
             });
+
 
             getDocs(collection(db, "users")).then(userSnap => {
                 const historyUsers = userSnap.docs.map(doc => {
@@ -165,29 +192,37 @@ export const useData = (currentUser, updateCurrentUser) => {
                 setUsers(historyUsers);
             });
         });
-        
-        unsubUsers = () => {}; 
+       
+        unsubUsers = () => {};
       }
     };
 
+
     fetchData();
 
-    return () => { 
-      unsubTasks(); 
-      unsubSubs(); 
-      unsubAnc(); 
-      unsubUsers(); 
-      unsubGames(); 
-    };
-  }, [currentUser?.username, selectedSeason, isHistoryMode]); 
 
-  return { 
-      tasks, submissions, users, announcements, games, 
-      seasonName: currentSeason, 
-      currentSeason, 
-      selectedSeason, 
-      setSelectedSeason, 
+    return () => {
+      unsubTasks();
+      unsubSubs();
+      unsubAnc();
+      unsubUsers();
+      unsubGames();
+    };
+  }, [currentUser?.username, selectedSeason, isHistoryMode]);
+
+
+  return {
+      tasks, submissions, users, announcements, games,
+      seasonName: currentSeason,
+      currentSeason,
+      selectedSeason,
+      setSelectedSeason,
       availableSeasons,
-      isHistoryMode 
+      isHistoryMode,
+      seasonGoal, // 匯出目標分數
+      seasonGoalTitle // 匯出目標標題
   };
 };
+
+
+
