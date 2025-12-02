@@ -38,25 +38,28 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
      
       # ======================================================
-      # ▼▼▼ 修改後的版本號生成腳本 (只取第一行 + 安全處理) ▼▼▼
+      # ▼▼▼ 修改後的版本號生成腳本 (強制單行 + 台北時間) ▼▼▼
       # ======================================================
       - name: Generate Version JSON
         run: |
-          # 1. 確保 dist 資料夾存在 (有些 build 工具可能不會產生，避免報錯)
+          # 1. 確保 dist 資料夾存在
           mkdir -p dist
 
-          # 2. 抓取 Commit 訊息
-          # git log -1 --pretty=%s : 只抓取最新的 Commit 標題 (Subject)
-          # head -n 1              : 強制只取第一行 (雙重保險)
-          # sed 's/\\/\\\\/g'      : 先把反斜線 \ 變成 \\ (避免 JSON 壞掉)
-          # sed 's/"/\\"/g'        : 再把雙引號 " 變成 \" (避免 JSON 壞掉)
-          COMMIT_MSG=$(git log -1 --pretty=%s | head -n 1 | sed 's/\\/\\\\/g' | sed 's/"/\\"/g')
+          # 2. 抓取 Commit 訊息 - 改用 %B (完整 Body) 取第一行
+          # 為什麼改用 %B？因為 %s 有時會包含被自動合併的標題，
+          # 使用 raw body (%B) 配合 head -n 1 可以保證只抓到最上面那一列文字。
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1 | sed 's/\\/\\\\/g' | sed 's/"/\\"/g')
           
-          # 3. 寫入 JSON
-          echo '{ "version": "'"$COMMIT_MSG"'", "hash": "'"${{ github.sha }}"'", "date": "'"$(date -u)"'" }' > dist/version.json
+          # 3. 取得目前時間 (Asia/Taipei)
+          # 使用 TZ 環境變數來設定時區，格式：YYYY-MM-DD HH:MM:SS
+          BUILD_DATE=$(TZ='Asia/Taipei' date +'%Y-%m-%d %H:%M:%S')
+
+          # 4. 寫入 JSON
+          echo '{ "version": "'"$COMMIT_MSG"'", "hash": "'"${{ github.sha }}"'", "date": "'"$BUILD_DATE"'" }' > dist/version.json
           
-          # 4. (選用) 在 Log 印出來檢查一下
+          # 5. 在 Log 印出來確認 (Debug 用，您可以在 Action logs 看到結果)
           echo "Version set to: $COMMIT_MSG"
+          echo "Date set to: $BUILD_DATE"
       # ======================================================
       # ▲▲▲ 修改結束 ▲▲▲
       # ======================================================

@@ -67,8 +67,7 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
       return seasonName;
   };
 
-  // 內部函式：計算加成倍率 (百分比相加邏輯)
-  // Multiplier = 1 + (Rate1 - 1) + (Rate2 - 1) + ...
+  // 計算加成倍率 (百分比相加邏輯)
   const calculateMultiplier = (userRoleCodes, allRoles = roles) => {
       const safeRoles = allRoles || [];
       const userRoles = userRoleCodes || [];
@@ -81,12 +80,12 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
           totalExtra += (rate - 1);
       });
 
-      // 基礎倍率 1 + 額外加成
       return Math.max(0, 1 + totalExtra);
   };
 
-  // 內部函式：重新計算特定使用者的所有歷史分數
+  // 核心邏輯：只重新計算使用者總分，不修改 submission
   const recalculateUserPoints = async (userId, userDocId, currentSeason, currentRoles = roles) => {
+      // 1. 找出該使用者本賽季所有 approved 的提交
       const q = query(
           collection(db, "submissions"), 
           where("uid", "==", userId),
@@ -95,58 +94,41 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
       );
       const snapshot = await getDocs(q);
       
+      // 2. 取得使用者最新的 roles
       const userDocSnap = await getDoc(doc(db, "users", userDocId));
       if (!userDocSnap.exists()) return;
       
       const userData = userDocSnap.data();
       const multiplier = calculateMultiplier(userData.roles, currentRoles);
 
-      let newTotalPoints = 0;
-      const batch = writeBatch(db);
-      let batchCount = 0;
+      let totalBasePoints = 0;
 
-      // 獲取所有 Tasks 以查找原始分
-      const tasksSnapshot = await getDocs(collection(db, "tasks"));
-      const taskMap = {};
-      tasksSnapshot.forEach(t => {
-          const d = t.data();
-          taskMap[d.id] = d;
+      // 3. 加總原始分數
+      // 這裡假設 submissions 中的 points 欄位現在儲存的就是原始分
+      snapshot.forEach(doc => {
+          const data = doc.data();
+          // 優先使用 basePoints，如果沒有則使用 points (相容舊資料)
+          const points = data.basePoints !== undefined ? Number(data.basePoints) : Number(data.points);
+          totalBasePoints += (points || 0);
       });
 
-      for (const subDoc of snapshot.docs) {
-          const subData = subDoc.data();
-          let basePoints = 0;
-
-          // 嘗試找出原始分
-          if (subData.basePoints !== undefined) {
-              basePoints = subData.basePoints;
-          } else if (taskMap[subData.taskId] && taskMap[subData.taskId].type === 'fixed') {
-              basePoints = Number(taskMap[subData.taskId].points) || 0;
-          } else {
-               // 如果找不到原始分，保留目前分數不變，避免歸零
-               newTotalPoints += (Number(subData.points) || 0);
-               continue;
-          }
-
-          // 重新計算
-          const newPoints = Math.round(basePoints * multiplier);
-          
-          if (newPoints !== subData.points) {
-              batch.update(subDoc.ref, { points: newPoints });
-              batchCount++;
-          }
-          
-          newTotalPoints += newPoints;
-      }
+      // 4. 計算加成後的總分 (總分 = 總原始分 * 倍率 -> 四捨五入)
+      // 修正：根據您的需求，是每一筆乘完再加總，還是加總後乘？
+      // 您之前的需求是「四捨五入的小數點可能會影響之後加總的分數」，所以我們維持逐筆計算
+      // 但為了 O(n) 效率且不讀寫 submission，我們可以在這裡模擬逐筆計算
       
-      // 更新使用者總分
-      batch.update(doc(db, "users", userDocId), { points: newTotalPoints });
-      batchCount++;
-
-      if (batchCount > 0) {
-          await batch.commit();
-          console.log(`Recalculated points for ${userId}: ${newTotalPoints} (Multiplier: ${multiplier})`);
-      }
+      let newTotalPoints = 0;
+      snapshot.forEach(doc => {
+          const data = doc.data();
+          const base = data.basePoints !== undefined ? Number(data.basePoints) : Number(data.points);
+          // 這裡直接計算最終得分並累加，但不寫回 submission
+          newTotalPoints += Math.round(base * multiplier);
+      });
+      
+      // 5. 只更新使用者總分
+      await updateDoc(doc(db, "users", userDocId), { points: newTotalPoints });
+      
+      console.log(`Recalculated for ${userId}: Base=${totalBasePoints}, Final=${newTotalPoints} (x${multiplier})`);
   };
 
   const actions = {
@@ -174,7 +156,8 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
 
       await addDoc(collection(db, "submissions"), {
         id: `s_${Date.now()}`, uid: currentUser.uid, username: currentUser.username,
-        taskId: data.task.id, taskTitle: data.task.title, points: 0, 
+        taskId: data.task.id, taskTitle: data.task.title, 
+        points: basePoints, // 預設存原始分
         basePoints: basePoints, 
         status: 'pending', proof: data.proof || '無備註', timestamp: new Date().toISOString(),
         images: JSON.stringify(imageUrls), week: data.task.week, season: currentSeason
@@ -186,41 +169,31 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
       await deleteDoc(doc(db, "submissions", firestoreId));
     }, "已撤回"),
 
+    // 審核邏輯更新：只更新狀態與原始分，不計算加成寫入
     review: (sub, action, points, statusOverride) => execute(async () => {
         if (!sub || !sub.firestoreId) throw new Error("無效的提交紀錄");
 
         const newStatus = statusOverride || (action === 'approve' ? 'approved' : 'rejected');
+        // 这里的 points 是管理員輸入的原始分
         let basePoints = Number(points) || 0;
         
         const user = users.find(u => u.uid === sub.uid);
         if (!user || !user.firestoreId) return;
 
-        let multiplier = 1;
-        if (newStatus === 'approved') {
-            multiplier = calculateMultiplier(user.roles);
-        }
-
-        const finalPoints = Math.round(basePoints * multiplier);
-        const oldStatus = sub.status;
-        const oldPoints = Number(sub.points) || 0;
-
         const subRef = doc(db, "submissions", sub.firestoreId);
         
+        // 更新 submission：points 欄位現在只存原始分
         await updateDoc(subRef, { 
             status: newStatus, 
-            points: finalPoints,
+            points: basePoints, // points 現在等於 basePoints
             basePoints: basePoints 
         });
         
-        let pointDiff = 0;
-        if (oldStatus === 'approved' && newStatus !== 'approved') pointDiff = -oldPoints;
-        else if (oldStatus !== 'approved' && newStatus === 'approved') pointDiff = finalPoints;
-        else if (oldStatus === 'approved' && newStatus === 'approved') pointDiff = finalPoints - oldPoints;
+        // 觸發該使用者的總分重算
+        // 注意：這是非同步的，我們等待它完成以確保 UI 總分即時更新
+        const currentSeason = getValidSeason();
+        await recalculateUserPoints(sub.uid, user.firestoreId, currentSeason);
 
-        if (pointDiff !== 0) {
-            const currentTotal = Number(user.points) || 0;
-            await updateDoc(doc(db, "users", user.firestoreId), { points: currentTotal + pointDiff });
-        }
     }, "操作成功"),
 
     addAnnouncement: (title, content, rawFiles = []) => execute(async () => {
@@ -262,7 +235,6 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
         await deleteDoc(doc(db, "games", firestoreId)); 
     }),
 
-    // --- 身分組管理 ---
     addRole: (data) => execute(async () => {
         if (!data.code || !data.label) throw new Error("代號與暱稱必填");
         const safeRoles = roles || [];
@@ -275,6 +247,7 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
         });
     }, "身分組已新增"),
 
+    // 更新身分組邏輯：更新後只重算 user points
     updateRole: (id, data) => execute(async () => {
         if (!id) throw new Error("無效的 ID");
         
@@ -292,11 +265,12 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
 
              const affectedUsers = users.filter(u => (u.roles || []).includes(codeToFind));
              
+             // 這裡只會更新 User 的 points，不會遍歷更新 submissions
              for (const user of affectedUsers) {
                  await recalculateUserPoints(user.uid, user.firestoreId, currentSeason, updatedRoles);
              }
              if (affectedUsers.length > 0) {
-                 showToast(`已重新計算 ${affectedUsers.length} 位使用者的分數`);
+                 showToast(`已重新計算 ${affectedUsers.length} 位使用者的總分`);
              }
         }
 
@@ -316,7 +290,7 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
         const currentSeason = getValidSeason();
         await recalculateUserPoints(userId, user.firestoreId, currentSeason);
         
-    }, "使用者身分已更新並重新計算分數"),
+    }, "使用者身分已更新"),
 
     updateSeasonGoal: (newGoal, newTitle) => execute(async () => {
         await setDoc(doc(db, "system", "config"), { 

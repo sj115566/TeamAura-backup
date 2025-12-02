@@ -11,17 +11,13 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
   const [showHistory, setShowHistory] = useState(false);
   const [showStats, setShowStats] = useState(false);
   
-  // Role Management State
-  // percentage: 用來綁定 UI 輸入框 (例如 20)
   const [roleModal, setRoleModal] = useState({ isOpen: false, id: null, code: '', label: '', percentage: 0, color: '#6366f1' });
 
-  // 開啟編輯 Modal (將 multiplier 1.2 轉為 percentage 20)
   const handleOpenEditRole = (role) => {
-      // 計算方式：(1.2 - 1) * 100 = 20
       const pct = Math.round((role.multiplier - 1) * 100);
       setRoleModal({ 
           isOpen: true, 
-          id: role.firestoreId, // 確保這裡拿到 firestoreId 用於更新
+          id: role.firestoreId, 
           code: role.code, 
           label: role.label, 
           percentage: pct, 
@@ -32,6 +28,20 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
   const handleOpenAddRole = () => {
       setRoleModal({ isOpen: true, id: null, code: '', label: '', percentage: 10, color: '#6366f1' });
   };
+
+  // 計算當前使用者的總倍率
+  const currentMultiplier = useMemo(() => {
+      if (!currentUser?.roles || !roles) return 1;
+      const safeRoles = roles || [];
+      const userRoles = currentUser.roles || [];
+      const activeRoles = safeRoles.filter(r => userRoles.includes(r.code));
+      let totalExtra = 0;
+      activeRoles.forEach(r => {
+          const rate = Number(r.multiplier) || 1;
+          totalExtra += (rate - 1);
+      });
+      return Math.max(0, 1 + totalExtra);
+  }, [currentUser, roles]);
 
   const { mySubs, pendingSubs, processedSubs, weeklyStats } = useMemo(() => {
     const my = submissions.filter(s => s.uid === currentUser.uid);
@@ -45,21 +55,28 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
         const w = t.week || 'Other';
         if (!taskMap[w]) taskMap[w] = { week: w, totalTasks: 0, completed: 0, earned: 0, totalPts: 0 };
         taskMap[w].totalTasks++; 
+        // 注意：這裡 task.points 是原始分，如果是 variable 任務這只是預設值
+        // 這裡顯示的「總分母」暫時維持原始分，因為無法預測 variable 任務的倍率
         taskMap[w].totalPts += (Number(t.points) || 0);
       });
+      
       my.forEach(s => {
         if (s.status === 'approved') {
           const w = s.week || 'Other';
           if (taskMap[w]) {
             taskMap[w].completed++;
-            taskMap[w].earned += (Number(s.points) || 0);
+            // 重點修改：submission 裡的 points 現在是原始分，
+            // 我們需要在前端乘上倍率來顯示使用者「實際獲得」了多少分
+            // 這樣使用者在看每週統計時才不會覺得分數對不上
+            const base = Number(s.points) || 0;
+            taskMap[w].earned += Math.round(base * currentMultiplier);
           }
         }
       });
       Object.values(taskMap).sort((a, b) => parseInt(b.week) - parseInt(a.week)).forEach(s => wStats.push(s));
     }
     return { mySubs: my, pendingSubs: pending, processedSubs: processed, weeklyStats: wStats };
-  }, [tasks, submissions, currentUser, isAdmin, isHistoryMode]);
+  }, [tasks, submissions, currentUser, isAdmin, isHistoryMode, currentMultiplier]);
 
   const sortedHistoryWeeks = useMemo(() => {
     return [...new Set(mySubs.map(s => s.week))].sort((a,b) => {
@@ -71,15 +88,12 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
 
   const showInitButton = tasks.length === 0;
 
-  // 取得當前使用者的身分標籤物件 (加入防呆)
   const myRoleBadges = useMemo(() => {
       if (!currentUser?.roles || !roles) return [];
       return (roles || []).filter(r => currentUser.roles.includes(r.code));
   }, [currentUser, roles]);
 
   const handleSaveRole = () => {
-      // 將 percentage 轉回 multiplier
-      // 例如 20 -> 1 + (20/100) = 1.2
       const multiplier = 1 + (Number(roleModal.percentage) / 100);
 
       const data = { 
@@ -92,43 +106,29 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
       if (roleModal.id) {
           if (typeof onUpdateRole === 'function') {
               onUpdateRole(roleModal.id, data);
-          } else {
-              console.error("onUpdateRole 函數未定義");
           }
       } else {
           if (typeof onAddRole === 'function') {
               onAddRole(data);
           } else {
-              console.error("onAddRole 函數未定義，請確認 useAdmin 是否正確匯出");
-              alert("系統錯誤：無法新增身分組 (Function missing)");
-              return; 
+              console.error("onAddRole function missing");
           }
       }
       setRoleModal({ isOpen: false, id: null, code: '', label: '', percentage: 0, color: '#6366f1' });
   };
 
   const presetColors = [
-    '#ef4444', // Red
-    '#f97316', // Orange
-    '#eab308', // Yellow
-    '#22c55e', // Green
-    '#06b6d4', // Cyan
-    '#3b82f6', // Blue
-    '#6366f1', // Indigo (Default)
-    '#8b5cf6', // Violet
-    '#d946ef', // Fuchsia
-    '#64748b'  // Slate
+    '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', 
+    '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#64748b'
   ];
 
   return (
     <div className="animate-fadeIn space-y-6">
       <Card className="text-center">
-        {/* 使用者名稱 */}
-        <h2 className="font-black text-2xl text-slate-800 break-all mb-2">
+        <h2 className="font-black text-xl text-slate-800 break-all flex items-center justify-center gap-2 flex-wrap">
             {currentUser.uid}
         </h2>
         
-        {/* 身分組標籤 (移到名稱下方並置中) */}
         {myRoleBadges.length > 0 && (
           <div className="flex items-center justify-center gap-2 flex-wrap mb-3">
             {myRoleBadges.map(role => (
@@ -148,11 +148,11 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
         )}
 
         <div className="text-xs text-gray-400 mb-4">{isAdmin ? 'Administrator' : 'Trainer'}</div>
-        
         {(!isAdmin || isHistoryMode) && (
           <>
             <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4 mb-4">
               <div>
+                {/* 這裡的 currentUser.points 是從 users 集合讀取的，已經是加成後的總分，所以直接顯示 */}
                 <div className="text-2xl font-black text-indigo-600">{(currentUser.points || 0)}</div>
                 <div className="text-[10px] text-gray-400 uppercase font-bold">總積分</div>
               </div>
@@ -178,7 +178,8 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
                     <div key={s.week} className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
                       <div className="flex justify-between mb-1 text-sm">
                         <span className="font-bold text-slate-700">第 {s.week} 週</span>
-                        <span className="font-bold text-indigo-600">{s.earned} <span className="text-gray-400 text-xs">/ {s.totalPts} pts</span></span>
+                        {/* 這裡的 s.earned 已經在上面 useMemo 裡乘過倍率了 */}
+                        <span className="font-bold text-indigo-600">{s.earned} <span className="text-gray-400 text-xs">/ {Math.round(s.totalPts * currentMultiplier)} pts (預估)</span></span>
                       </div>
                       <div className="flex justify-between text-xs mb-2">
                         <span className="text-gray-500">進度</span>
@@ -217,7 +218,15 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
                 {mySubs.filter(s => s.week === week).map(sub => (
                   <div key={sub.id} className="p-3 flex justify-between items-center text-sm">
                     <span className="font-medium text-slate-700">{sub.taskTitle}</span>
-                    <Badge color={sub.status === 'approved' ? 'green' : sub.status === 'rejected' ? 'red' : 'yellow'}>{sub.status === 'approved' ? '完成' : sub.status === 'rejected' ? '退回' : '審核中'}</Badge>
+                    <div className="flex items-center gap-2">
+                        {/* 顯示單筆得分 (原始分 * 倍率) */}
+                        {sub.status === 'approved' && (
+                            <span className="text-xs font-bold text-indigo-600">
+                                +{Math.round((Number(sub.points) || 0) * currentMultiplier)}
+                            </span>
+                        )}
+                        <Badge color={sub.status === 'approved' ? 'green' : sub.status === 'rejected' ? 'red' : 'yellow'}>{sub.status === 'approved' ? '完成' : sub.status === 'rejected' ? '退回' : '審核中'}</Badge>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -238,7 +247,6 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
         />
       )}
       
-      {/* 身分組管理區塊 */}
       {isAdmin && !isHistoryMode && (
           <div className="mt-6">
               <div className="flex justify-between items-center mb-2 px-1">
@@ -253,7 +261,6 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
               <Card noPadding>
                   <div className="divide-y divide-gray-50">
                       {(roles || []).length > 0 ? (roles || []).map(role => {
-                          // 將儲存的 multiplier 轉回顯示用的百分比
                           const pct = Math.round((role.multiplier - 1) * 100);
                           const pctDisplay = pct > 0 ? `+${pct}%` : pct < 0 ? `${pct}%` : '0%';
                           

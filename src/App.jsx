@@ -22,7 +22,7 @@ const AppContent = () => {
   const { 
       tasks, submissions, users, currentUser, activeTab, loading, expandedWeeks, 
       announcements, games, selectedSeason, availableSeasons, isHistoryMode,
-      needRefresh, notifications, seasonGoal, seasonGoalTitle, roles // 確保這裡有解構出 roles
+      needRefresh, notifications, seasonGoal, seasonGoalTitle, roles 
   } = state;
 
   const [taskModal, setTaskModal] = useState({ isOpen: false, data: { title: '', points: 10, icon: '🐾', description: '', week: '1', type: 'fixed' } });
@@ -188,7 +188,7 @@ const AppContent = () => {
             seasonGoal={seasonGoal} 
             seasonGoalTitle={seasonGoalTitle}
             onUpdateGoal={actions.updateSeasonGoal}
-            roles={roles} // 傳遞 roles
+            roles={roles} 
             onEditUserRole={(uid, currentRoles) => setUserRoleModal({ isOpen: true, uid, roles: currentRoles || [] })}
           />
         )}
@@ -198,6 +198,7 @@ const AppContent = () => {
             onArchiveSeason={() => setArchiveModal({ isOpen: true, newSeasonName: '' })} 
             isHistoryMode={isHistoryMode} 
             onExport={actions.exportReport}
+            roles={roles} // 傳遞 roles
           />
         )}
         {activeTab === 'profile' && (

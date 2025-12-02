@@ -3,7 +3,27 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Icon } from '../components/Icons';
 
-export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHistoryMode, onExport }) => {
+export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHistoryMode, onExport, roles }) => {
+  
+  // 輔助函數：計算倍率 (與 useAdmin 保持一致)
+  const getMultiplier = (userRoleCodes, allRoles = roles) => {
+      const safeRoles = allRoles || [];
+      const userRoles = userRoleCodes || [];
+      const activeRoles = safeRoles.filter(r => userRoles.includes(r.code));
+      let totalExtra = 0;
+      activeRoles.forEach(r => {
+          const rate = Number(r.multiplier) || 1;
+          totalExtra += (rate - 1);
+      });
+      return Math.max(0, 1 + totalExtra);
+  };
+
+  // 輔助函數：取得身分標籤資料
+  const getUserRoleBadges = (userRoles) => {
+    if (!userRoles || !roles) return [];
+    return roles.filter(r => userRoles.includes(r.code));
+  };
+
   const { weeks, rows } = useMemo(() => {
     // 過濾掉管理員，只顯示一般成員
     const reportUsers = users.filter(u => !u.isAdmin);
@@ -12,6 +32,7 @@ export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHisto
     const subMap = new Map();
     submissions.forEach(s => {
       if (s.status === 'approved') {
+        // submission 裡的 points 現在是原始分
         subMap.set(`${s.uid}_${s.taskId}`, Number(s.points));
       }
     });
@@ -37,21 +58,30 @@ export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHisto
       const weekTotals = {};
       const taskPoints = {};
       
+      // 計算該使用者的加成倍率
+      const multiplier = getMultiplier(u.roles);
+      
       sortedWeeks.forEach(w => {
         let wTotal = 0;
         w.tasks.forEach(t => {
-          const pts = subMap.get(`${u.uid}_${t.id}`);
-          taskPoints[t.id] = pts !== undefined ? pts : null;
-          wTotal += (pts || 0);
+          const rawPts = subMap.get(`${u.uid}_${t.id}`);
+          
+          // 報表中單項任務顯示原始分
+          taskPoints[t.id] = rawPts !== undefined ? rawPts : null;
+          
+          // 週總分計算加成後的分數
+          if (rawPts !== undefined) {
+             wTotal += Math.round(rawPts * multiplier);
+          }
         });
         weekTotals[w.week] = wTotal;
       });
       
-      return { user: u, weekTotals, taskPoints };
+      return { user: u, weekTotals, taskPoints, multiplier };
     });
 
     return { weeks: sortedWeeks, rows: rowsData };
-  }, [tasks, users, submissions]);
+  }, [tasks, users, submissions, roles]);
 
   const [expandedCols, setExpandedCols] = useState({});
   const toggleCol = (w) => setExpandedCols(prev => ({ ...prev, [w]: !prev[w] }));
@@ -85,7 +115,7 @@ export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHisto
               <tr>
                 {/* 左上角固定標題 */}
                 <th className="sticky top-0 left-0 z-30 bg-slate-100 border-b border-r border-slate-200 p-3 min-w-[120px] text-left font-bold text-slate-600 shadow-sm h-12">
-                  User / Week
+                  User Info
                 </th>
                 
                 {/* 週次標題 (可點擊展開) */}
@@ -106,8 +136,11 @@ export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHisto
               
               {/* 第二層標題 (任務名稱) */}
               <tr>
-                <th className="sticky left-0 z-20 bg-slate-50 border-r border-b border-slate-200 p-2 text-xs text-gray-400 font-normal">
-                  Name
+                <th className="sticky left-0 z-20 bg-slate-50 border-r border-b border-slate-200 p-2 text-xs text-gray-400 font-normal text-left">
+                  <div className="flex flex-col gap-1">
+                    <span>Name</span>
+                    <span className="text-[10px] text-gray-300">Roles</span>
+                  </div>
                 </th>
                 {weeks.map(w => (
                   expandedCols[w.week] ? 
@@ -117,40 +150,66 @@ export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHisto
                       </th>
                     )) :
                     <th key={w.week} className="bg-white border-b border-r border-gray-100 p-2 text-[10px] text-gray-400 italic">
-                      Total
+                      Total (Weighted)
                     </th>
                 ))}
               </tr>
             </thead>
             
             <tbody>
-              {rows.map(row => (
-                <tr key={row.user.uid} className="hover:bg-gray-50">
-                  {/* 使用者名稱 (左側固定) */}
-                  <td className="sticky left-0 z-10 bg-white border-r border-b border-gray-100 p-3 font-bold text-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-                    {row.user.uid}
-                  </td>
-                  
-                  {/* 分數內容 */}
-                  {weeks.map(w => (
-                    expandedCols[w.week] ? 
-                      w.tasks.map(t => {
-                        const val = row.taskPoints[t.id];
-                        return (
-                          <td key={t.id} className="border-b border-r border-gray-100 p-2 text-center">
-                            {val !== null ? 
-                              <span className="font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded text-xs">{val}</span> : 
-                              <span className="text-gray-200 text-xs">-</span>
-                            }
-                          </td>
-                        );
-                      }) :
-                      <td key={w.week} className="border-b border-r border-gray-100 p-2 text-center bg-gray-50/50">
-                        <span className="font-bold text-slate-500 text-xs">{row.weekTotals[w.week]}</span>
-                      </td>
-                  ))}
-                </tr>
-              ))}
+              {rows.map(row => {
+                const userRoleBadges = getUserRoleBadges(row.user.roles);
+                
+                return (
+                  <tr key={row.user.uid} className="hover:bg-gray-50">
+                    {/* 使用者名稱與身分組 (左側固定) */}
+                    <td className="sticky left-0 z-10 bg-white border-r border-b border-gray-100 p-3 font-bold text-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                      <div className="flex flex-col gap-1">
+                        <span className="truncate max-w-[100px]" title={row.user.uid}>{row.user.uid}</span>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {userRoleBadges.map(role => (
+                             <span 
+                                key={role.code}
+                                className="text-[9px] px-1 py-0.5 rounded border whitespace-nowrap"
+                                style={{
+                                    backgroundColor: role.color ? `${role.color}15` : '#f3f4f6', 
+                                    color: role.color || '#6b7280',
+                                    borderColor: role.color ? `${role.color}40` : '#e5e7eb'
+                                }}
+                                title={`x${role.multiplier}`}
+                            >
+                                {role.label}
+                            </span>
+                          ))}
+                          {row.multiplier > 1 && (
+                            <span className="text-[9px] text-indigo-400 font-mono">x{row.multiplier.toFixed(2)}</span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    
+                    {/* 分數內容 */}
+                    {weeks.map(w => (
+                      expandedCols[w.week] ? 
+                        w.tasks.map(t => {
+                          const val = row.taskPoints[t.id];
+                          return (
+                            <td key={t.id} className="border-b border-r border-gray-100 p-2 text-center">
+                              {val !== null ? 
+                                <span className="font-bold text-gray-600 bg-gray-50 px-1.5 py-0.5 rounded text-xs" title="Original Points">{val}</span> : 
+                                <span className="text-gray-200 text-xs">-</span>
+                              }
+                            </td>
+                          );
+                        }) :
+                        <td key={w.week} className="border-b border-r border-gray-100 p-2 text-center bg-indigo-50/30">
+                          {/* 這裡顯示的是加權後的總分 */}
+                          <span className="font-bold text-indigo-600 text-xs">{row.weekTotals[w.week]}</span>
+                        </td>
+                    ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

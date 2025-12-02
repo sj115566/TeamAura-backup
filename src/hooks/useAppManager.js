@@ -12,6 +12,7 @@ export const useAppManager = () => {
   const [expandedWeeks, setExpandedWeeks] = useState({});
   const [dialog, setDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
   const [exporting, setExporting] = useState(false);
+  
   const [notifications, setNotifications] = useState({ announcements: false, tasks: false });
 
   const { showToast } = useToast();
@@ -20,8 +21,12 @@ export const useAppManager = () => {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW({
-    onRegistered(r) { console.log('SW Registered: ' + r); },
-    onRegisterError(error) { console.log('SW registration error', error); },
+    onRegistered(r) {
+      console.log('SW Registered: ' + r);
+    },
+    onRegisterError(error) {
+      console.log('SW registration error', error);
+    },
   });
 
   const { currentUser, loading: authLoading, login, logout, updateCurrentUser } = useAuth();
@@ -32,11 +37,10 @@ export const useAppManager = () => {
       seasonGoal, seasonGoalTitle, roles 
   } = useData(currentUser, updateCurrentUser);
 
-  // 確保 roles 有傳入
   const { actions: adminActions, adminLoading } = useAdmin(currentUser, seasonName, users, roles);
 
   useEffect(() => {
-    if (!currentUser || isHistoryMode) return; 
+    if (!currentUser || isHistoryMode) return;
 
     const checkNewContent = () => {
         const lastViewedAnc = localStorage.getItem('lastViewed_announcements') || 0;
@@ -58,6 +62,18 @@ export const useAppManager = () => {
     checkNewContent();
   }, [announcements, tasks, activeTab, currentUser, isHistoryMode]);
 
+  // 內部輔助：計算倍率
+  const getMultiplier = (userRoleCodes) => {
+      const safeRoles = roles || [];
+      const userRoles = userRoleCodes || [];
+      const activeRoles = safeRoles.filter(r => userRoles.includes(r.code));
+      let totalExtra = 0;
+      activeRoles.forEach(r => {
+          const rate = Number(r.multiplier) || 1;
+          totalExtra += (rate - 1);
+      });
+      return Math.max(0, 1 + totalExtra);
+  };
 
   const uiActions = {
     setTab: (tab) => {
@@ -108,6 +124,7 @@ export const useAppManager = () => {
         const reportUsers = users.filter(u => !u.isAdmin); 
         const subMap = new Map();
         allSubmissions.forEach(s => {
+            // 注意：這裡是原始分
             subMap.set(`${s.uid}_${s.taskId}`, Number(s.points) || 0);
         });
 
@@ -120,11 +137,18 @@ export const useAppManager = () => {
         const headers = ['User ID', 'Username', 'Roles', 'Total Points', ...sortedTasks.map(t => `[W${t.week}] ${t.title}`)];
         
         const rows = reportUsers.map(u => {
+            // 計算該使用者的倍率
+            const multiplier = getMultiplier(u.roles);
+            
             let total = 0;
             const taskCols = sortedTasks.map(t => {
-                const pts = subMap.get(`${u.uid}_${t.id}`) || 0;
-                total += pts;
-                return pts;
+                const rawPts = subMap.get(`${u.uid}_${t.id}`) || 0;
+                // 累加時才計算加成
+                const weightedPts = Math.round(rawPts * multiplier);
+                total += weightedPts;
+
+                // 報表個別任務顯示原始分數
+                return rawPts; 
             });
             const safeUid = `"${u.uid}"`;
             const safeName = `"${(u.username || '').replace(/"/g, '""')}"`; 
@@ -222,6 +246,8 @@ export const useAppManager = () => {
             }
         });
     },
+    
+    initializeSystem: adminActions.initializeSystem
   };
 
   useMemo(() => {
@@ -248,7 +274,7 @@ export const useAppManager = () => {
     actions: {
       login, 
       logout, 
-      ...adminActions, // 這裡展開 adminActions，確保 ProfileView 能拿到 addRole
+      ...adminActions, 
       ...uiActions 
     },
     sortedUsers,

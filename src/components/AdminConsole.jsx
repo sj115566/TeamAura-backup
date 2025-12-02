@@ -28,7 +28,6 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
         </button>
       </div>
 
-      {/* 待審核區塊 - 僅在非歷史模式顯示 */}
       {!isHistoryMode && (
         pendingSubs.length > 0 ? (
           <div className="space-y-3">
@@ -38,9 +37,6 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
               const isVari = task?.type === 'variable';
               const currentPoints = inputPoints[sub.id] || '';
 
-              // 修正：計算正確的原始分數傳遞給審核函數
-              // 1. 變動分數：使用輸入框的值
-              // 2. 固定分數：優先使用 sub.basePoints (新版資料)，若無則查表 task.points，最後才用 sub.points (舊版相容)
               let pointsToPass = 0;
               if (isVari) {
                   pointsToPass = currentPoints;
@@ -113,18 +109,13 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
         )
       )}
 
-      {/* 歷史紀錄區塊 - 只要 showHistory 為 true 就顯示 */}
       {showHistory && (
         <div className={`border-t border-slate-700 pt-4 mt-4 animate-fadeIn ${isHistoryMode ? 'border-t-0 pt-0 mt-0' : ''}`}>
           {!isHistoryMode && <h4 className="font-bold text-sm mb-3 text-slate-300">歷史紀錄 & 修正</h4>}
           
           <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
             {processedSubs.map(sub => {
-              // 判斷是否有原始分數 (basePoints) 且與最終分數 (points) 不同
-              const hasBasePoints = sub.basePoints !== undefined && sub.basePoints !== null;
-              const isDifferent = hasBasePoints && Number(sub.basePoints) !== Number(sub.points);
               const isApproved = sub.status === 'approved';
-
               return (
                 <div key={sub.id} className="bg-slate-700/50 p-3 rounded-lg flex justify-between items-center text-xs border border-slate-700">
                   <div className="flex-1">
@@ -133,23 +124,13 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
                       <Badge color={sub.status==='approved'?'green':'red'}>{sub.status}</Badge>
                     </div>
                     <div className="text-slate-400 truncate">{sub.taskTitle}</div>
-                    {/* 顯示分數詳情 */}
                     {isApproved && (
                       <div className="mt-1 text-[10px] text-slate-500">
-                        {isDifferent ? (
-                          <>
-                            原始: <span className="text-slate-300">{sub.basePoints}</span> 
-                            {' '}<Icon name="ArrowRight" className="w-2 h-2 inline mx-0.5" />{' '}
-                            加成後: <span className="text-indigo-400 font-bold">{sub.points}</span>
-                          </>
-                        ) : (
-                          <>得分: <span className="text-slate-300">{sub.points}</span></>
-                        )}
+                         原始分數: <span className="text-slate-300 font-bold">{sub.points}</span>
                       </div>
                     )}
                   </div>
                   
-                  {/* 歷史模式下不顯示編輯按鈕 */}
                   {!isHistoryMode && (
                     <button 
                       onClick={() => setEditSub(sub)} 
@@ -192,7 +173,9 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
               <div>
                 <label className="text-xs font-bold text-gray-500">
                   原始分數 (Base Points)
-                  <span className="font-normal text-gray-400 ml-1">- 系統會自動計算加成</span>
+                  <span className="font-normal text-gray-400 ml-1 block mt-1 text-[10px]">
+                    - 請輸入原始分數，系統會自動在後台計算加成。
+                  </span>
                 </label>
                 <input 
                   type="number" 
