@@ -43,9 +43,12 @@ jobs:
    
       - name: Generate Version JSON
         # 注意：如果您是用 Create React App，請將 'dist' 改為 'build'
-        # 這行指令會建立一個包含版本號、Commit Hash 和時間的 JSON 檔案
         run: |
-          echo '{ "version": "'"${{ github.ref_name }}"'", "hash": "'"${{ github.sha }}"'", "date": "'"$(date -u)"'" }' > dist/version.json
+          # 1. 抓取最新一筆 Commit 的標題 (只取第一行)，並處理雙引號以免破壞 JSON 格式
+          COMMIT_MSG=$(git log -1 --pretty=%s | sed 's/"/\\"/g')
+          
+          # 2. 將 version 欄位設為 $COMMIT_MSG (Commit 訊息)
+          echo '{ "version": "'"$COMMIT_MSG"'", "hash": "'"${{ github.sha }}"'", "date": "'"$(date -u)"'" }' > dist/version.json
   
       # ======================================================
       # ▲▲▲ 加入上面這段 ▲▲▲
