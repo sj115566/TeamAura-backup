@@ -29,7 +29,6 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
       setRoleModal({ isOpen: true, id: null, code: '', label: '', percentage: 10, color: '#6366f1' });
   };
 
-  // 計算當前使用者的總倍率
   const currentMultiplier = useMemo(() => {
       if (!currentUser?.roles || !roles) return 1;
       const safeRoles = roles || [];
@@ -55,8 +54,6 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
         const w = t.week || 'Other';
         if (!taskMap[w]) taskMap[w] = { week: w, totalTasks: 0, completed: 0, earned: 0, totalPts: 0 };
         taskMap[w].totalTasks++; 
-        // 注意：這裡 task.points 是原始分，如果是 variable 任務這只是預設值
-        // 這裡顯示的「總分母」暫時維持原始分，因為無法預測 variable 任務的倍率
         taskMap[w].totalPts += (Number(t.points) || 0);
       });
       
@@ -65,9 +62,6 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
           const w = s.week || 'Other';
           if (taskMap[w]) {
             taskMap[w].completed++;
-            // 重點修改：submission 裡的 points 現在是原始分，
-            // 我們需要在前端乘上倍率來顯示使用者「實際獲得」了多少分
-            // 這樣使用者在看每週統計時才不會覺得分數對不上
             const base = Number(s.points) || 0;
             taskMap[w].earned += Math.round(base * currentMultiplier);
           }
@@ -125,8 +119,9 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
   return (
     <div className="animate-fadeIn space-y-6">
       <Card className="text-center">
-        <h2 className="font-black text-xl text-slate-800 break-all flex items-center justify-center gap-2 flex-wrap">
-            {currentUser.uid}
+        {/* 修正：顯示 username 而非 uid */}
+        <h2 className="font-black text-xl text-slate-800 break-all mb-2">
+            {currentUser.username || currentUser.uid}
         </h2>
         
         {myRoleBadges.length > 0 && (
@@ -148,11 +143,11 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
         )}
 
         <div className="text-xs text-gray-400 mb-4">{isAdmin ? 'Administrator' : 'Trainer'}</div>
+        
         {(!isAdmin || isHistoryMode) && (
           <>
             <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4 mb-4">
               <div>
-                {/* 這裡的 currentUser.points 是從 users 集合讀取的，已經是加成後的總分，所以直接顯示 */}
                 <div className="text-2xl font-black text-indigo-600">{(currentUser.points || 0)}</div>
                 <div className="text-[10px] text-gray-400 uppercase font-bold">總積分</div>
               </div>
@@ -178,7 +173,6 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
                     <div key={s.week} className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
                       <div className="flex justify-between mb-1 text-sm">
                         <span className="font-bold text-slate-700">第 {s.week} 週</span>
-                        {/* 這裡的 s.earned 已經在上面 useMemo 裡乘過倍率了 */}
                         <span className="font-bold text-indigo-600">{s.earned} <span className="text-gray-400 text-xs">/ {Math.round(s.totalPts * currentMultiplier)} pts (預估)</span></span>
                       </div>
                       <div className="flex justify-between text-xs mb-2">
@@ -219,7 +213,6 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
                   <div key={sub.id} className="p-3 flex justify-between items-center text-sm">
                     <span className="font-medium text-slate-700">{sub.taskTitle}</span>
                     <div className="flex items-center gap-2">
-                        {/* 顯示單筆得分 (原始分 * 倍率) */}
                         {sub.status === 'approved' && (
                             <span className="text-xs font-bold text-indigo-600">
                                 +{Math.round((Number(sub.points) || 0) * currentMultiplier)}

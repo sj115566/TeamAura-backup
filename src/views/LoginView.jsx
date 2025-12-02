@@ -3,7 +3,7 @@ import { Tag, GitCommit, Clock, X, FileText } from 'lucide-react'; // 假設您�
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 
-export const LoginView = ({ onLogin, loading, onInitialize }) => {
+export const LoginView = ({ onLogin, loading }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [versionInfo, setVersionInfo] = useState({

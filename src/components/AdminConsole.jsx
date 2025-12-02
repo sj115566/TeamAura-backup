@@ -28,6 +28,7 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
         </button>
       </div>
 
+      {/* 待審核區塊 - 僅在非歷史模式顯示 */}
       {!isHistoryMode && (
         pendingSubs.length > 0 ? (
           <div className="space-y-3">
@@ -37,6 +38,7 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
               const isVari = task?.type === 'variable';
               const currentPoints = inputPoints[sub.id] || '';
 
+              // 修正：計算正確的原始分數傳遞給審核函數
               let pointsToPass = 0;
               if (isVari) {
                   pointsToPass = currentPoints;
@@ -109,6 +111,7 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
         )
       )}
 
+      {/* 歷史紀錄區塊 - 只要 showHistory 為 true 就顯示 */}
       {showHistory && (
         <div className={`border-t border-slate-700 pt-4 mt-4 animate-fadeIn ${isHistoryMode ? 'border-t-0 pt-0 mt-0' : ''}`}>
           {!isHistoryMode && <h4 className="font-bold text-sm mb-3 text-slate-300">歷史紀錄 & 修正</h4>}
