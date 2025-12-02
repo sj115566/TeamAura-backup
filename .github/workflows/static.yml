@@ -44,14 +44,13 @@ jobs:
       - name: Generate Version JSON
         # 注意：如果您是用 Create React App，請將 'dist' 改為 'build'
         run: |
-          # 1. 抓取最新一筆 Commit 的標題 (只取第一行)，並處理雙引號以免破壞 JSON 格式
-          COMMIT_MSG=$(git log -1 --pretty=%s | sed 's/"/\\"/g')
+          # 1. 抓取最新一筆 Commit 的標題 (強制只取第一行)，並處理雙引號以免破壞 JSON 格式
+          COMMIT_MSG=$(git log -1 --pretty=%s | head -n 1 | sed 's/"/\\"/g')
           
           # 2. 將 version 欄位設為 $COMMIT_MSG (Commit 訊息)
           echo '{ "version": "'"$COMMIT_MSG"'", "hash": "'"${{ github.sha }}"'", "date": "'"$(date -u)"'" }' > dist/version.json
-  
       # ======================================================
-      # ▲▲▲ 加入上面這段 ▲▲▲
+      # ▲▲▲ 修改結束 ▲▲▲
       # ======================================================
     
       - name: Upload artifact
