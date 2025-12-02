@@ -37,29 +37,47 @@ jobs:
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
      
-      # ======================================================
-      # ▼▼▼ 修改後的版本號生成腳本 (強制單行 + 台北時間) ▼▼▼
+# ======================================================
+      # ▼▼▼ 升級版：使用 Node.js 生成完整版號與說明 ▼▼▼
       # ======================================================
       - name: Generate Version JSON
         run: |
-          # 1. 確保 dist 資料夾存在
-          mkdir -p dist
+          node -e '
+            const fs = require("fs");
+            const { execSync } = require("child_process");
 
-          # 2. 抓取 Commit 訊息 - 改用 %B (完整 Body) 取第一行
-          # 為什麼改用 %B？因為 %s 有時會包含被自動合併的標題，
-          # 使用 raw body (%B) 配合 head -n 1 可以保證只抓到最上面那一列文字。
-          COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1 | sed 's/\\/\\\\/g' | sed 's/"/\\"/g')
-          
-          # 3. 取得目前時間 (Asia/Taipei)
-          # 使用 TZ 環境變數來設定時區，格式：YYYY-MM-DD HH:MM:SS
-          BUILD_DATE=$(TZ='Asia/Taipei' date +'%Y-%m-%d %H:%M:%S')
+            // 1. 確保 dist 資料夾存在
+            if (!fs.existsSync("dist")) fs.mkdirSync("dist");
 
-          # 4. 寫入 JSON
-          echo '{ "version": "'"$COMMIT_MSG"'", "hash": "'"${{ github.sha }}"'", "date": "'"$BUILD_DATE"'" }' > dist/version.json
-          
-          # 5. 在 Log 印出來確認 (Debug 用，您可以在 Action logs 看到結果)
-          echo "Version set to: $COMMIT_MSG"
-          echo "Date set to: $BUILD_DATE"
+            try {
+              // 2. 抓取 Git 資訊 (使用 Node 執行指令最安全，不用擔心特殊符號)
+              // %s = 標題 (單行), %B = 完整內容 (多行)
+              const subject = execSync("git log -1 --pretty=%s").toString().trim();
+              const fullBody = execSync("git log -1 --pretty=%B").toString().trim();
+              
+              // 3. 取得台北時間
+              const date = new Date().toLocaleString("zh-TW", { 
+                timeZone: "Asia/Taipei", 
+                hour12: false 
+              });
+
+              // 4. 組合成 JSON 物件
+              const versionData = {
+                version: subject,      // 顯示在登入頁的小標題
+                notes: fullBody,       // 點擊後顯示的完整說明
+                hash: "${{ github.sha }}",
+                date: date
+              };
+
+              // 5. 寫入檔案
+              fs.writeFileSync("dist/version.json", JSON.stringify(versionData));
+              console.log("Version JSON generated:", versionData);
+              
+            } catch (error) {
+              console.error("Error generating version json:", error);
+              process.exit(1);
+            }
+          '
       # ======================================================
       # ▲▲▲ 修改結束 ▲▲▲
       # ======================================================

@@ -9,29 +9,29 @@ export const LoginView = ({ onLogin, loading, onInitialize }) => {
   const [versionInfo, setVersionInfo] = useState({
     version: 'Dev', // 預設值
     hash: '',
-    date: ''
+    date: '',
+    notes: '' // 新增：用來存完整說明
   });
 
+    // 控制彈出視窗的開關
+    const [showModal, setShowModal] = useState(false);
+    
     // ▼▼▼ 加入這段 useEffect ▼▼▼
     useEffect(() => {
-      // 這裡去抓取跟網頁同層級的 version.json
-      // 注意：本地開發 (Localhost) 時通常會抓不到 (404)，這是正常的
       fetch('./version.json')
         .then((res) => {
           if (!res.ok) throw new Error("No version file");
           return res.json();
         })
         .then((data) => {
-          console.log("Version loaded:", data);
-          // 如果抓到了，就更新狀態
           setVersionInfo({
-            version: data.version,    // 例如: main 或 v1.0.0
-            hash: data.hash.substring(0, 7), // 只取 hash 前7碼
-            date: data.date
+            version: data.version,
+            hash: data.hash.substring(0, 7),
+            date: data.date,
+            notes: data.notes || "沒有詳細說明" // 讀取完整內容
           });
         })
         .catch((err) => {
-          // 本地開發或發生錯誤時，保持預設值或顯示 Local
           console.log("Running in local mode or version file missing");
         });
     }, []);
@@ -79,27 +79,98 @@ export const LoginView = ({ onLogin, loading, onInitialize }) => {
           </Button>
         </form>
 
-        {/* ▼▼▼ 將版本號顯示在底部 ▼▼▼ */}
-        <div className="flex flex-col items-center gap-1">
-          
-          {/* 主要版本號顯示 */}
-          <div className="flex items-center gap-2 px-3 py-1 bg-slate-200 rounded-full text-slate-600 text-xs font-mono font-bold shadow-sm">
-            <Tag size={12}/>
-            <span>{versionInfo.version}</span>
-          </div>
-
-          {/* 次要資訊 (Commit Hash)，滑鼠移上去可以看到時間 (選用) */}
-          {versionInfo.hash && (
-            <div 
-              className="flex items-center gap-1 text-[10px] text-slate-400 font-mono hover:text-slate-600 transition-colors cursor-help"
-              title={`Build Time: ${versionInfo.date}`}
-            >
-              <GitCommit size={10} />
-              <span>{versionInfo.hash}</span>
-            </div>
-          )}
+      {/* ▼▼▼ 底部版本資訊區 (可點擊) ▼▼▼ */}
+      <div className="flex flex-col items-center gap-2">
+        
+        {/* 主要版本號 */}
+        <div className="flex items-center gap-2 px-3 py-1 bg-slate-200 rounded-full text-slate-600 text-xs font-mono font-bold shadow-sm">
+          <Tag size={12} />
+          <span>{versionInfo.version}</span>
         </div>
-        {/* ▲▲▲ 結束 ▲▲▲ */}
+
+        {/* 時間與 Hash (點擊觸發彈窗) */}
+        {versionInfo.date && (
+          <button 
+            onClick={() => setShowModal(true)}
+            className="group flex items-center gap-2 text-[10px] text-slate-400 font-mono hover:text-blue-600 transition-colors cursor-pointer bg-transparent border-none outline-none"
+            title="點擊查看版本詳情"
+          >
+            <Clock size={10} className="group-hover:scale-110 transition-transform" />
+            <span>Last Updated: {versionInfo.date}</span>
+            <GitCommit size={10} className="ml-1" />
+            <span>{versionInfo.hash}</span>
+          </button>
+        )}
+      </div>
+
+      {/* ▼▼▼ 版本說明彈出視窗 (Modal) ▼▼▼ */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* 背景遮罩 (點擊背景也可以關閉) */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+            onClick={() => setShowModal(false)}
+          ></div>
+
+          {/* 彈窗本體 */}
+          <div className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            
+            {/* 標題列 */}
+            <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+              <div className="flex items-center gap-2 text-slate-700 font-semibold">
+                <FileText size={18} className="text-blue-500"/>
+                <span>版本詳細資訊</span>
+              </div>
+              <button 
+                onClick={() => setShowModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded-full transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* 內容區：顯示完整 Commit Message */}
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              <div className="space-y-4">
+                
+                {/* 標題 (Subject) */}
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 mb-1">更新摘要</h3>
+                  <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    {versionInfo.version}
+                  </p>
+                </div>
+
+                {/* 內容 (Body) - 支援換行顯示 */}
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 mb-1">詳細說明 (Commit Log)</h3>
+                  <div className="text-xs font-mono text-slate-600 bg-slate-900/5 p-4 rounded-lg whitespace-pre-wrap leading-relaxed border border-slate-200/50">
+                    {versionInfo.notes}
+                  </div>
+                </div>
+
+                {/* 底部資訊 */}
+                <div className="flex justify-between items-center pt-2 border-t border-slate-100 text-[10px] text-slate-400 font-mono">
+                  <span>Hash: {versionInfo.hash}</span>
+                  <span>{versionInfo.date}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 按鈕列 */}
+            <div className="bg-slate-50 px-6 py-3 border-t border-slate-100 flex justify-end">
+              <button 
+                onClick={() => setShowModal(false)}
+                className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium px-4 py-2 rounded-lg transition-colors"
+              >
+                關閉
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+      {/* ▲▲▲ 彈窗結束 ▲▲▲ */}
     
       </Card>
     </div>
