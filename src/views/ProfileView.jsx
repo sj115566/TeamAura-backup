@@ -123,12 +123,18 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
   return (
     <div className="animate-fadeIn space-y-6">
       <Card className="text-center">
-        <h2 className="font-black text-xl text-slate-800 break-all flex items-center justify-center gap-2 flex-wrap">
+        {/* 使用者名稱 */}
+        <h2 className="font-black text-2xl text-slate-800 break-all mb-2">
             {currentUser.uid}
+        </h2>
+        
+        {/* 身分組標籤 (移到名稱下方並置中) */}
+        {myRoleBadges.length > 0 && (
+          <div className="flex items-center justify-center gap-2 flex-wrap mb-3">
             {myRoleBadges.map(role => (
                 <span 
                     key={role.code}
-                    className="text-[10px] px-2 py-0.5 rounded border"
+                    className="text-[10px] px-2 py-0.5 rounded border font-bold shadow-sm"
                     style={{
                         backgroundColor: role.color ? `${role.color}15` : '#f3f4f6', 
                         color: role.color || '#6b7280',
@@ -138,8 +144,11 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
                     {role.label}
                 </span>
             ))}
-        </h2>
+          </div>
+        )}
+
         <div className="text-xs text-gray-400 mb-4">{isAdmin ? 'Administrator' : 'Trainer'}</div>
+        
         {(!isAdmin || isHistoryMode) && (
           <>
             <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4 mb-4">
