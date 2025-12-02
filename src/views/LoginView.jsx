@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Tag, GitCommit, Clock } from 'lucide-react'; // 假設您有這些 icon
+import { Tag, GitCommit, Clock, X, FileText } from 'lucide-react'; // 假設您有這些 icon
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 

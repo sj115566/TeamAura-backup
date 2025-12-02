@@ -38,7 +38,7 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
      
 # ======================================================
-      # ▼▼▼ 升級版：使用 Node.js 生成完整版號與說明 ▼▼▼
+      # ▼▼▼ 修正版：強制以「換行符號」切割取第一行 ▼▼▼
       # ======================================================
       - name: Generate Version JSON
         run: |
@@ -46,32 +46,31 @@ jobs:
             const fs = require("fs");
             const { execSync } = require("child_process");
 
-            // 1. 確保 dist 資料夾存在
             if (!fs.existsSync("dist")) fs.mkdirSync("dist");
 
             try {
-              // 2. 抓取 Git 資訊 (使用 Node 執行指令最安全，不用擔心特殊符號)
-              // %s = 標題 (單行), %B = 完整內容 (多行)
-              const subject = execSync("git log -1 --pretty=%s").toString().trim();
+              // 1. 抓取完整內容 (Raw Body)
               const fullBody = execSync("git log -1 --pretty=%B").toString().trim();
               
+              // 2. 強制以換行符號 (\n) 切割，只取第一行作為版本標題
+              // 這樣就算 Commit 內容是一大坨，也只會抓到第一句
+              const subject = fullBody.split("\n")[0].trim();
+
               // 3. 取得台北時間
               const date = new Date().toLocaleString("zh-TW", { 
                 timeZone: "Asia/Taipei", 
                 hour12: false 
               });
 
-              // 4. 組合成 JSON 物件
               const versionData = {
-                version: subject,      // 顯示在登入頁的小標題
-                notes: fullBody,       // 點擊後顯示的完整說明
+                version: subject,      // 乾淨的第一行
+                notes: fullBody,       // 完整內容 (給彈窗用)
                 hash: "${{ github.sha }}",
                 date: date
               };
 
-              // 5. 寫入檔案
               fs.writeFileSync("dist/version.json", JSON.stringify(versionData));
-              console.log("Version JSON generated:", versionData);
+              console.log("Version set to:", subject);
               
             } catch (error) {
               console.error("Error generating version json:", error);
