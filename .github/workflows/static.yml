@@ -38,17 +38,25 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
      
       # ======================================================
-      # ▼▼▼ 請將這一段程式碼加入在 Build 之後，Deploy 之前 ▼▼▼
+      # ▼▼▼ 修改後的版本號生成腳本 (只取第一行 + 安全處理) ▼▼▼
       # ======================================================
-   
       - name: Generate Version JSON
-        # 注意：如果您是用 Create React App，請將 'dist' 改為 'build'
         run: |
-          # 1. 抓取最新一筆 Commit 的標題 (強制只取第一行)，並處理雙引號以免破壞 JSON 格式
-          COMMIT_MSG=$(git log -1 --pretty=%s | head -n 1 | sed 's/"/\\"/g')
+          # 1. 確保 dist 資料夾存在 (有些 build 工具可能不會產生，避免報錯)
+          mkdir -p dist
+
+          # 2. 抓取 Commit 訊息
+          # git log -1 --pretty=%s : 只抓取最新的 Commit 標題 (Subject)
+          # head -n 1              : 強制只取第一行 (雙重保險)
+          # sed 's/\\/\\\\/g'      : 先把反斜線 \ 變成 \\ (避免 JSON 壞掉)
+          # sed 's/"/\\"/g'        : 再把雙引號 " 變成 \" (避免 JSON 壞掉)
+          COMMIT_MSG=$(git log -1 --pretty=%s | head -n 1 | sed 's/\\/\\\\/g' | sed 's/"/\\"/g')
           
-          # 2. 將 version 欄位設為 $COMMIT_MSG (Commit 訊息)
+          # 3. 寫入 JSON
           echo '{ "version": "'"$COMMIT_MSG"'", "hash": "'"${{ github.sha }}"'", "date": "'"$(date -u)"'" }' > dist/version.json
+          
+          # 4. (選用) 在 Log 印出來檢查一下
+          echo "Version set to: $COMMIT_MSG"
       # ======================================================
       # ▲▲▲ 修改結束 ▲▲▲
       # ======================================================
