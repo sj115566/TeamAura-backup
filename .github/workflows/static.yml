@@ -36,7 +36,21 @@ jobs:
           VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
-
+     
+      # ======================================================
+      # ▼▼▼ 請將這一段程式碼加入在 Build 之後，Deploy 之前 ▼▼▼
+      # ======================================================
+   
+      - name: Generate Version JSON
+        # 注意：如果您是用 Create React App，請將 'dist' 改為 'build'
+        # 這行指令會建立一個包含版本號、Commit Hash 和時間的 JSON 檔案
+        run: |
+          echo '{ "version": "'"${{ github.ref_name }}"'", "hash": "'"${{ github.sha }}"'", "date": "'"$(date -u)"'" }' > dist/version.json
+  
+      # ======================================================
+      # ▲▲▲ 加入上面這段 ▲▲▲
+      # ======================================================
+    
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
