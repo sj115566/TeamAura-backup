@@ -6,28 +6,32 @@ import { Icon } from '../components/Icons';
 import { Modal } from '../components/ui/Modal';
 import { AdminConsole } from '../components/AdminConsole';
 
+
 export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin, onReview, onInitialize, onHardReset, isHistoryMode, roles, onAddRole, onUpdateRole, onDeleteRole }) => {
   const [historySort, setHistorySort] = useState('desc');
   const [showHistory, setShowHistory] = useState(false);
   const [showStats, setShowStats] = useState(false);
-  
+ 
   const [roleModal, setRoleModal] = useState({ isOpen: false, id: null, code: '', label: '', percentage: 0, color: '#6366f1' });
+
 
   const handleOpenEditRole = (role) => {
       const pct = Math.round((role.multiplier - 1) * 100);
-      setRoleModal({ 
-          isOpen: true, 
-          id: role.firestoreId, 
-          code: role.code, 
-          label: role.label, 
-          percentage: pct, 
-          color: role.color 
+      setRoleModal({
+          isOpen: true,
+          id: role.firestoreId,
+          code: role.code,
+          label: role.label,
+          percentage: pct,
+          color: role.color
       });
   };
+
 
   const handleOpenAddRole = () => {
       setRoleModal({ isOpen: true, id: null, code: '', label: '', percentage: 10, color: '#6366f1' });
   };
+
 
   const currentMultiplier = useMemo(() => {
       if (!currentUser?.roles || !roles) return 1;
@@ -42,21 +46,22 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
       return Math.max(0, 1 + totalExtra);
   }, [currentUser, roles]);
 
+
   const { mySubs, pendingSubs, processedSubs, weeklyStats } = useMemo(() => {
     const my = submissions.filter(s => s.uid === currentUser.uid);
     const pending = isAdmin ? submissions.filter(s => s.status === 'pending') : [];
     const processed = isAdmin ? submissions.filter(s => s.status !== 'pending') : [];
-    
+   
     const wStats = [];
-    if (!isAdmin || isHistoryMode) { 
-      const taskMap = {}; 
+    if (!isAdmin || isHistoryMode) {
+      const taskMap = {};
       tasks.forEach(t => {
         const w = t.week || 'Other';
         if (!taskMap[w]) taskMap[w] = { week: w, totalTasks: 0, completed: 0, earned: 0, totalPts: 0 };
-        taskMap[w].totalTasks++; 
+        taskMap[w].totalTasks++;
         taskMap[w].totalPts += (Number(t.points) || 0);
       });
-      
+     
       my.forEach(s => {
         if (s.status === 'approved') {
           const w = s.week || 'Other';
@@ -72,6 +77,7 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
     return { mySubs: my, pendingSubs: pending, processedSubs: processed, weeklyStats: wStats };
   }, [tasks, submissions, currentUser, isAdmin, isHistoryMode, currentMultiplier]);
 
+
   const sortedHistoryWeeks = useMemo(() => {
     return [...new Set(mySubs.map(s => s.week))].sort((a,b) => {
       const na = parseInt(a), nb = parseInt(b);
@@ -80,23 +86,27 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
     });
   }, [mySubs, historySort]);
 
+
   const showInitButton = tasks.length === 0;
+
 
   const myRoleBadges = useMemo(() => {
       if (!currentUser?.roles || !roles) return [];
       return (roles || []).filter(r => currentUser.roles.includes(r.code));
   }, [currentUser, roles]);
 
+
   const handleSaveRole = () => {
       const multiplier = 1 + (Number(roleModal.percentage) / 100);
 
-      const data = { 
-          code: roleModal.code, 
-          label: roleModal.label, 
+
+      const data = {
+          code: roleModal.code,
+          label: roleModal.label,
           multiplier: multiplier,
-          color: roleModal.color 
+          color: roleModal.color
       };
-      
+     
       if (roleModal.id) {
           if (typeof onUpdateRole === 'function') {
               onUpdateRole(roleModal.id, data);
@@ -111,10 +121,12 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
       setRoleModal({ isOpen: false, id: null, code: '', label: '', percentage: 0, color: '#6366f1' });
   };
 
+
   const presetColors = [
-    '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', 
+    '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4',
     '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#64748b'
   ];
+
 
   return (
     <div className="animate-fadeIn space-y-6">
@@ -123,15 +135,15 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
         <h2 className="font-black text-xl text-slate-800 break-all mb-2">
             {currentUser.username || currentUser.uid}
         </h2>
-        
+       
         {myRoleBadges.length > 0 && (
           <div className="flex items-center justify-center gap-2 flex-wrap mb-3">
             {myRoleBadges.map(role => (
-                <span 
+                <span
                     key={role.code}
                     className="text-[10px] px-2 py-0.5 rounded border font-bold shadow-sm"
                     style={{
-                        backgroundColor: role.color ? `${role.color}15` : '#f3f4f6', 
+                        backgroundColor: role.color ? `${role.color}15` : '#f3f4f6',
                         color: role.color || '#6b7280',
                         borderColor: role.color ? `${role.color}40` : '#e5e7eb'
                     }}
@@ -142,8 +154,9 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
           </div>
         )}
 
+
         <div className="text-xs text-gray-400 mb-4">{isAdmin ? 'Administrator' : 'Trainer'}</div>
-        
+       
         {(!isAdmin || isHistoryMode) && (
           <>
             <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4 mb-4">
@@ -156,10 +169,10 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
                 <div className="text-[10px] text-gray-400 uppercase font-bold">完成任務</div>
               </div>
             </div>
-            
+           
             <div className="text-left bg-gray-50 rounded-xl mb-4 border border-gray-100 overflow-hidden">
-              <div 
-                onClick={() => setShowStats(!showStats)} 
+              <div
+                onClick={() => setShowStats(!showStats)}
                 className="p-4 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition-colors"
               >
                 <h3 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
@@ -194,12 +207,13 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
         )}
       </Card>
 
+
       {(!isAdmin || isHistoryMode) && mySubs.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <h3 className="font-bold text-slate-700 text-sm ml-1">提交紀錄</h3>
-            <button 
-              onClick={() => setHistorySort(prev => prev === 'desc' ? 'asc' : 'desc')} 
+            <button
+              onClick={() => setHistorySort(prev => prev === 'desc' ? 'asc' : 'desc')}
               className="p-1 rounded-lg hover:bg-slate-200 text-slate-400 transition-colors"
             >
               <Icon name={historySort === 'desc' ? "ArrowDown" : "ArrowUp"} className="w-3 h-3" />
@@ -228,23 +242,24 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
         </div>
       )}
 
+
       {isAdmin && (
-        <AdminConsole 
-          pendingSubs={pendingSubs} 
-          processedSubs={processedSubs} 
-          tasks={tasks} 
-          onReview={onReview} 
-          showHistory={showHistory} 
-          toggleHistory={() => setShowHistory(!showHistory)} 
+        <AdminConsole
+          pendingSubs={pendingSubs}
+          processedSubs={processedSubs}
+          tasks={tasks}
+          onReview={onReview}
+          showHistory={showHistory}
+          toggleHistory={() => setShowHistory(!showHistory)}
           isHistoryMode={isHistoryMode}
         />
       )}
-      
+     
       {isAdmin && !isHistoryMode && (
           <div className="mt-6">
               <div className="flex justify-between items-center mb-2 px-1">
                   <h3 className="font-bold text-slate-700 text-sm">身分組設定 (加成系統)</h3>
-                  <button 
+                  <button
                     onClick={handleOpenAddRole}
                     className="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded hover:bg-indigo-100"
                   >
@@ -256,7 +271,7 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
                       {(roles || []).length > 0 ? (roles || []).map(role => {
                           const pct = Math.round((role.multiplier - 1) * 100);
                           const pctDisplay = pct > 0 ? `+${pct}%` : pct < 0 ? `${pct}%` : '0%';
-                          
+                         
                           return (
                             <div key={role.id} className="p-3 flex justify-between items-center text-sm">
                                 <div className="flex items-center gap-2">
@@ -276,12 +291,13 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
           </div>
       )}
 
+
       {isAdmin && !isHistoryMode && (
           <div className="mt-8 space-y-3">
               {showInitButton && (
                   <div className="text-center">
                       <div className="mb-2 text-xs text-gray-400">系統尚未偵測到任務資料</div>
-                      <Button 
+                      <Button
                           variant="ghost"
                           onClick={() => window.confirm("確定要初始化？將建立預設資料。") && onInitialize()}
                           className="w-full text-xs text-indigo-500 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200"
@@ -291,8 +307,9 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
                   </div>
               )}
 
+
               <div className="pt-4 border-t border-gray-100 text-center">
-                  <button 
+                  <button
                       onClick={onHardReset}
                       className="text-[10px] text-red-300 hover:text-red-500 underline transition-colors"
                   >
@@ -301,6 +318,7 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
               </div>
           </div>
       )}
+
 
       {/* Role Edit Modal */}
       <Modal isOpen={roleModal.isOpen} onClose={() => setRoleModal({ ...roleModal, isOpen: false })} title={roleModal.id ? "編輯身分組" : "新增身分組"}>
@@ -324,7 +342,7 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
               </div>
               <div>
                   <label className="text-xs font-bold text-gray-500 mb-1 block">標籤顏色</label>
-                  
+                 
                   {/* 預設顏色按鈕 */}
                   <div className="flex flex-wrap gap-2 mb-2">
                     {presetColors.map(color => (
@@ -338,14 +356,15 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
                     ))}
                   </div>
 
+
                   <div className="flex items-center gap-2">
-                    <input 
-                        type="color" 
-                        className="w-10 h-10 p-1 border rounded cursor-pointer shrink-0" 
-                        value={roleModal.color} 
-                        onChange={e => setRoleModal({...roleModal, color: e.target.value})} 
+                    <input
+                        type="color"
+                        className="w-10 h-10 p-1 border rounded cursor-pointer shrink-0"
+                        value={roleModal.color}
+                        onChange={e => setRoleModal({...roleModal, color: e.target.value})}
                     />
-                    <input 
+                    <input
                         type="text"
                         className="w-full p-2 border rounded text-sm uppercase"
                         value={roleModal.color}
@@ -360,3 +379,4 @@ export const ProfileView = ({ currentUser, tasks, submissions, onLogout, isAdmin
     </div>
   );
 };
+
