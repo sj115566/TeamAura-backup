@@ -103,6 +103,15 @@ export const useData = (currentUser, updateCurrentUser) => {
      unsubAnc = onSnapshot(ancQ, (snapshot) => {
          const allAnc = snapshot.docs.map(d => ({ ...d.data(), firestoreId: d.id }));
          const filteredAnc = allAnc.filter(a => !a.season || a.season === selectedSeason);
+         
+         // 新增排序邏輯：置頂優先，其次按時間
+         filteredAnc.sort((a, b) => {
+             if (a.isPinned === b.isPinned) {
+                 return new Date(b.timestamp) - new Date(a.timestamp);
+             }
+             return a.isPinned ? -1 : 1;
+         });
+
          setAnnouncements(filteredAnc);
      }, (error) => console.error("Announcements fetch error:", error));
 
@@ -135,33 +144,22 @@ export const useData = (currentUser, updateCurrentUser) => {
            });
            setUsers(usersData);
           
-           // ========================================================
-           // ▼▼▼ 修正邏輯：使用 ID 或 Email 來對應使用者，而非 Username ▼▼▼
-           // ========================================================
            if (currentUser) {
                let freshMe = null;
-              
-               // 1. 優先嘗試用 firestoreId (文件ID) 匹配 (最準確)
                if (currentUser.firestoreId) {
                    freshMe = usersData.find(u => u.firestoreId === currentUser.firestoreId);
                }
-              
-               // 2. 如果沒有 ID 或找不到，嘗試用 Email 匹配
                if (!freshMe && currentUser.email) {
                    freshMe = usersData.find(u => u.email === currentUser.email);
                }
-
-
-               // 3. 最後才退回去用 username (舊邏輯)
                if (!freshMe) {
                     freshMe = usersData.find(u => u.username === currentUser.username);
                }
 
 
                if (freshMe) {
-                   // 檢查是否有任何重要變更 (包含 username)
                    const hasChanged =
-                       freshMe.username !== currentUser.username || // 新增：偵測名字是否改了
+                       freshMe.username !== currentUser.username || 
                        freshMe.points !== (currentUser.points || 0) ||
                        freshMe.isAdmin !== currentUser.isAdmin ||
                        JSON.stringify(freshMe.roles) !== JSON.stringify(currentUser.roles);
@@ -172,10 +170,6 @@ export const useData = (currentUser, updateCurrentUser) => {
                    }
                }
            }
-           // ========================================================
-           // ▲▲▲ 修正結束 ▲▲▲
-           // ========================================================
-
 
        }, (error) => console.error("Users fetch error:", error));
 
@@ -246,4 +240,3 @@ export const useData = (currentUser, updateCurrentUser) => {
      seasonGoalTitle
  };
 };
-

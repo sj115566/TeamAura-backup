@@ -18,6 +18,8 @@ import { ProfileView } from './views/ProfileView';
 import { GameView } from './views/GameView';
 import { AnnouncementView } from './views/AnnouncementView';
 
+// 預設任務分類
+const TASK_CATEGORIES = ['一般', '每日', '每週', '挑戰', '賽季'];
 
 const AppContent = () => {
  const { state, actions, sortedUsers, dialog, setDialog } = useAppManager();
@@ -27,11 +29,26 @@ const AppContent = () => {
      needRefresh, notifications, seasonGoal, seasonGoalTitle, roles
  } = state;
 
-
- const [taskModal, setTaskModal] = useState({ isOpen: false, data: { title: '', points: 10, icon: '🐾', description: '', week: '1', type: 'fixed' } });
+ // 修改：初始化 taskModal 增加 category 與 isPinned
+ const [taskModal, setTaskModal] = useState({ 
+    isOpen: false, 
+    data: { 
+        title: '', 
+        points: 10, 
+        icon: '🐾', 
+        description: '', 
+        week: '1', 
+        type: 'fixed',
+        category: '一般',
+        isPinned: false
+    } 
+ });
+ 
  const [submitModal, setSubmitModal] = useState({ isOpen: false, task: null, proof: '', images: [] });
  const [archiveModal, setArchiveModal] = useState({ isOpen: false, newSeasonName: '' });
- const [announceModal, setAnnounceModal] = useState({ isOpen: false, id: null, title: '', content: '', images: [] });
+ 
+ const [announceModal, setAnnounceModal] = useState({ isOpen: false, id: null, title: '', content: '', images: [], category: '一般', isPinned: false });
+ 
  const [gameModal, setGameModal] = useState({ isOpen: false, id: null, title: '', url: '', icon: '' });
  const [userRoleModal, setUserRoleModal] = useState({ isOpen: false, uid: null, roles: [] });
 
@@ -69,11 +86,24 @@ const AppContent = () => {
  const handleAddAnnouncement = async () => {
    let success = false;
    if (announceModal.id) {
-       success = await actions.updateAnnouncement(announceModal.id, announceModal.title, announceModal.content, announceModal.rawFiles);
+       success = await actions.updateAnnouncement(
+           announceModal.id, 
+           announceModal.title, 
+           announceModal.content, 
+           announceModal.rawFiles,
+           announceModal.category,
+           announceModal.isPinned
+        );
    } else {
-       success = await actions.addAnnouncement(announceModal.title, announceModal.content, announceModal.rawFiles);
+       success = await actions.addAnnouncement(
+           announceModal.title, 
+           announceModal.content, 
+           announceModal.rawFiles,
+           announceModal.category,
+           announceModal.isPinned
+        );
    }
-   if (success) setAnnounceModal({ isOpen: false, id: null, title: '', content: '', images: [], rawFiles: [] });
+   if (success) setAnnounceModal({ isOpen: false, id: null, title: '', content: '', images: [], rawFiles: [], category: '一般', isPinned: false });
  };
 
 
@@ -95,6 +125,23 @@ const AppContent = () => {
      if (!userRoleModal.uid) return;
      await actions.updateUserRoles(userRoleModal.uid, userRoleModal.roles);
      setUserRoleModal({ isOpen: false, uid: null, roles: [] });
+ };
+
+ // 新增：處理複製任務邏輯
+ const handleDuplicateTask = (task) => {
+    setTaskModal({
+        isOpen: true,
+        data: {
+            title: task.title,
+            points: task.points,
+            icon: task.icon,
+            description: task.description,
+            week: task.week, // 保留原週次，讓管理員自己改
+            type: task.type,
+            category: task.category || '一般',
+            isPinned: task.isPinned || false
+        }
+    });
  };
 
 
@@ -141,7 +188,8 @@ const AppContent = () => {
        </div>
       
        <div className="flex items-center gap-2">
-         {!currentUser.isAdmin && <Badge color={isHistoryMode ? "yellow" : "indigo"} className="text-sm">{(currentUser.points || 0)} pts</Badge>}
+         {/* Safe point rendering: force Number() to avoid object crash */}
+         {!currentUser.isAdmin && <Badge color={isHistoryMode ? "yellow" : "indigo"} className="text-sm">{Number(currentUser.points || 0)} pts</Badge>}
         
          <button onClick={actions.refresh} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors relative">
            <Icon name="RefreshCw" className={`w-4 h-4 ${state.refreshing ? 'animate-spin' : ''}`} />
@@ -183,18 +231,33 @@ const AppContent = () => {
            isAdmin={currentUser.isAdmin}
            currentSeason={selectedSeason}
            isHistoryMode={isHistoryMode}
-           onOpenAdd={() => setAnnounceModal({ isOpen: true, id: null, title: '', content: '', images: [] })}
-           onOpenEdit={(anc) => setAnnounceModal({ isOpen: true, id: anc.id, title: anc.title, content: anc.content, images: JSON.parse(anc.images || '[]') })}
+           onOpenAdd={() => setAnnounceModal({ isOpen: true, id: null, title: '', content: '', images: [], category: '一般', isPinned: false })}
+           onOpenEdit={(anc) => setAnnounceModal({ 
+               isOpen: true, 
+               id: anc.id, 
+               title: anc.title, 
+               content: anc.content, 
+               images: JSON.parse(anc.images || '[]'),
+               category: anc.category || '一般',
+               isPinned: !!anc.isPinned
+            })}
            onDelete={actions.deleteAnnouncement}
          />
        )}
        {activeTab === 'tasks' && (
          <TaskListView
-           tasks={tasks} submissions={submissions} currentUser={currentUser} isAdmin={currentUser.isAdmin}
-           expandedWeeks={expandedWeeks} onToggleWeek={actions.toggleWeek} onDeleteTask={actions.deleteTask} onOpenWithdraw={actions.withdraw}
+           tasks={tasks} 
+           submissions={submissions} 
+           currentUser={currentUser} 
+           isAdmin={currentUser.isAdmin}
+           expandedWeeks={expandedWeeks} 
+           onToggleWeek={actions.toggleWeek} 
+           onDeleteTask={actions.deleteTask} 
+           onOpenWithdraw={actions.withdraw}
            isHistoryMode={isHistoryMode}
            onOpenSubmit={(t) => setSubmitModal({ isOpen: true, task: t, proof: '', images: [], rawFiles: [] })}
-           onOpenEditTask={() => setTaskModal({ isOpen: true, data: { title: '', points: 10, icon: '🐾', description: '', week: '1', type: 'fixed' } })}
+           onOpenEditTask={() => setTaskModal({ isOpen: true, data: { title: '', points: 10, icon: '🐾', description: '', week: '1', type: 'fixed', category: '一般', isPinned: false } })}
+           onDuplicateTask={handleDuplicateTask} // 傳遞複製函式
          />
        )}
        {activeTab === 'leaderboard' && (
@@ -214,7 +277,7 @@ const AppContent = () => {
            onArchiveSeason={() => setArchiveModal({ isOpen: true, newSeasonName: '' })}
            isHistoryMode={isHistoryMode}
            onExport={actions.exportReport}
-           roles={roles} // 傳遞 roles
+           roles={roles} 
          />
        )}
        {activeTab === 'profile' && (
@@ -274,10 +337,33 @@ const AppContent = () => {
      <Modal isOpen={taskModal.isOpen} onClose={() => setTaskModal({ ...taskModal, isOpen: false })} title="新增任務">
        <div className="space-y-3">
          <input className="w-full p-2 border rounded-lg" placeholder="標題" value={taskModal.data.title} onChange={e => setTaskModal({ ...taskModal, data: { ...taskModal.data, title: e.target.value } })} />
+         
          <div className="flex gap-2">
            <select className="flex-1 p-2 border rounded-lg" value={taskModal.data.type} onChange={e => setTaskModal({ ...taskModal, data: { ...taskModal.data, type: e.target.value } })}><option value="fixed">固定分數</option><option value="variable">管理員評分</option></select>
            <input type="number" className="flex-1 p-2 border rounded-lg" placeholder="週次" value={taskModal.data.week} onChange={e => setTaskModal({ ...taskModal, data: { ...taskModal.data, week: e.target.value } })} />
          </div>
+
+         {/* 新增：分類與置頂設定 */}
+         <div className="flex gap-2 items-center">
+            <select 
+                className="flex-1 p-2 border rounded-lg text-sm bg-slate-50"
+                value={taskModal.data.category || '一般'}
+                onChange={e => setTaskModal({ ...taskModal, data: { ...taskModal.data, category: e.target.value } })}
+            >
+                {TASK_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+
+            <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 select-none">
+                <input 
+                    type="checkbox" 
+                    checked={taskModal.data.isPinned || false} 
+                    onChange={e => setTaskModal({ ...taskModal, data: { ...taskModal.data, isPinned: e.target.checked } })} 
+                    className="w-4 h-4 accent-indigo-600"
+                />
+                <span className="text-sm font-bold text-slate-700">置頂</span>
+            </label>
+         </div>
+
          {taskModal.data.type === 'fixed' && <input type="number" className="w-full p-2 border rounded-lg" placeholder="分數" value={taskModal.data.points} onChange={e => setTaskModal({ ...taskModal, data: { ...taskModal.data, points: e.target.value } })} />}
          <input className="w-full p-2 border rounded-lg text-center" placeholder="Icon (Emoji)" value={taskModal.data.icon} onChange={e => setTaskModal({ ...taskModal, data: { ...taskModal.data, icon: e.target.value } })} />
          <textarea className="w-full p-2 border rounded-lg h-20 resize-none" placeholder="描述" value={taskModal.data.description} onChange={e => setTaskModal({ ...taskModal, data: { ...taskModal.data, description: e.target.value } })} />
@@ -300,8 +386,41 @@ const AppContent = () => {
 
      <Modal isOpen={announceModal.isOpen} onClose={() => setAnnounceModal({ ...announceModal, isOpen: false })} title={announceModal.id ? "編輯公告" : "發佈公告"}>
        <div className="space-y-3">
-         <input className="w-full p-2 border rounded-lg font-bold" placeholder="主旨標題" value={announceModal.title} onChange={e => setAnnounceModal({ ...announceModal, title: e.target.value })} />
+         {/* 標題輸入 */}
+         <input 
+            className="w-full p-2 border rounded-lg font-bold" 
+            placeholder="主旨標題" 
+            value={announceModal.title} 
+            onChange={e => setAnnounceModal({ ...announceModal, title: e.target.value })} 
+         />
+         
+         {/* 分類與置頂設定區域 */}
+         <div className="flex gap-2 items-center">
+            <select 
+                className="flex-1 p-2 border rounded-lg text-sm bg-slate-50"
+                value={announceModal.category}
+                onChange={e => setAnnounceModal({ ...announceModal, category: e.target.value })}
+            >
+                <option value="一般">一般</option>
+                <option value="活動">活動</option>
+                <option value="重要">重要</option>
+                <option value="更新">更新</option>
+                <option value="維護">維護</option>
+            </select>
+
+            <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 select-none">
+                <input 
+                    type="checkbox" 
+                    checked={announceModal.isPinned} 
+                    onChange={e => setAnnounceModal({ ...announceModal, isPinned: e.target.checked })} 
+                    className="w-4 h-4 accent-indigo-600"
+                />
+                <span className="text-sm font-bold text-slate-700">置頂</span>
+            </label>
+         </div>
+
          <RichTextEditor value={announceModal.content} onChange={(html) => setAnnounceModal(prev => ({ ...prev, content: html }))} />
+         
          <div onClick={() => announceFileRef.current?.click()} className="w-full min-h-[80px] rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 flex flex-wrap gap-2 p-2 cursor-pointer items-center justify-center hover:bg-gray-100">
             {announceModal.images.length > 0 ? announceModal.images.map((url, i) => <img key={i} src={url} className="w-16 h-16 object-cover rounded shadow-sm" />) : <div className="text-gray-400 flex flex-col items-center"><Icon name="Image" className="w-5 h-5 mb-1" /><span className="text-xs">選擇圖片</span></div>}
             <input type="file" ref={announceFileRef} className="hidden" accept="image/*" multiple onChange={handleAnnounceImageUpload} />
@@ -330,7 +449,7 @@ const AppContent = () => {
      </Modal>
 
 
-     {/* 使用者身分編輯 Modal - 加入防呆檢查 */}
+     {/* 使用者身分編輯 Modal */}
      <Modal isOpen={userRoleModal.isOpen} onClose={() => setUserRoleModal({ ...userRoleModal, isOpen: false })} title={`設定身分: ${userRoleModal.uid}`}>
          <div className="space-y-4">
              <div className="bg-indigo-50 p-3 rounded-lg text-xs text-indigo-700 mb-2">
@@ -377,4 +496,3 @@ export default function App() {
    </ToastProvider>
  );
 }
-

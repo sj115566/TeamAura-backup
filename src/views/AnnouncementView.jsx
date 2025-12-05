@@ -3,6 +3,15 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Icon } from '../components/Icons';
 
+// 分類標籤顏色對應
+const categoryColors = {
+    '一般': 'bg-gray-100 text-gray-600',
+    '活動': 'bg-green-100 text-green-700',
+    '重要': 'bg-red-100 text-red-700',
+    '更新': 'bg-blue-100 text-blue-700',
+    '維護': 'bg-orange-100 text-orange-700'
+};
+
 export const AnnouncementView = ({ announcements, isAdmin, onOpenAdd, onDelete, onOpenEdit, currentSeason, isHistoryMode }) => {
   const [viewingImg, setViewingImg] = useState(null);
   const [expandedIds, setExpandedIds] = useState({});
@@ -28,6 +37,8 @@ export const AnnouncementView = ({ announcements, isAdmin, onOpenAdd, onDelete, 
           const plainText = anc.content.replace(/<[^>]+>/g, '');
           const previewText = plainText.length > 50 ? plainText.slice(0, 50) + '...' : plainText;
           const isHistorical = anc.season && anc.season !== currentSeason;
+          
+          const catColor = categoryColors[anc.category] || categoryColors['一般'];
 
           return (
             <Card 
@@ -35,23 +46,45 @@ export const AnnouncementView = ({ announcements, isAdmin, onOpenAdd, onDelete, 
               className={`overflow-visible transition-all duration-200 relative ${isExpanded ? 'ring-2 ring-indigo-50 shadow-md' : 'hover:shadow-md cursor-pointer'} ${isHistorical ? 'bg-slate-100 border-slate-200' : 'bg-white'}`}
             >
               <div onClick={() => toggleExpand(anc.id)}>
-                {isHistorical && (
-                  <div className="absolute top-0 right-0 bg-slate-600 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg rounded-tr-lg z-20 opacity-80">
-                    歷史公告：{anc.season}
-                  </div>
-                )}
+                
+                {/* 右上角標籤區 (歷史標籤 > 置頂標籤) */}
+                <div className="absolute top-0 right-0 flex">
+                    {anc.isPinned && !isHistorical && (
+                        <div className="bg-indigo-600 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg z-20 flex items-center gap-1 shadow-sm">
+                            <Icon name="Map" className="w-3 h-3 text-white" /> {/* 使用 Map icon 暫代 Pin */}
+                            置頂
+                        </div>
+                    )}
+                    {isHistorical && (
+                        <div className="bg-slate-600 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg rounded-tr-lg z-20 opacity-80">
+                            歷史公告：{anc.season}
+                        </div>
+                    )}
+                </div>
+
                 <div className="flex justify-between items-start mb-2 pt-1">
                   <div className="flex items-center gap-2">
                     <div className={`w-8 h-8 rounded-full ${isHistorical ? 'bg-slate-300 text-slate-500' : 'bg-indigo-100 text-indigo-600'} flex items-center justify-center font-bold text-sm`}>
                       {(anc.author || 'A')[0].toUpperCase()}
                     </div>
                     <div>
-                      <div className={`font-bold text-sm ${isHistorical ? 'text-slate-500' : 'text-slate-800'}`}>{anc.author}</div>
-                      <div className="text-[10px] text-gray-400">{new Date(anc.timestamp).toLocaleString()}</div>
+                      <div className={`font-bold text-sm ${isHistorical ? 'text-slate-500' : 'text-slate-800'}`}>
+                          {anc.author}
+                      </div>
+                      <div className="flex items-center gap-2">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded ${catColor}`}>
+                              {anc.category || '一般'}
+                          </span>
+                          <span className="text-[10px] text-gray-400">
+                              {new Date(anc.timestamp).toLocaleString()}
+                          </span>
+                      </div>
                     </div>
                   </div>
+                  
+                  {/* 管理按鈕 */}
                   {isAdmin && !isHistoryMode && (
-                    <div className="flex gap-1 z-10 mr-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex gap-1 z-10 mr-1 mt-8 sm:mt-0" onClick={(e) => e.stopPropagation()}>
                       <button onClick={() => onOpenEdit(anc)} className="text-gray-300 hover:text-blue-500 p-1 transition-colors">
                         <Icon name="Edit2" className="w-4 h-4" />
                       </button>
@@ -61,7 +94,10 @@ export const AnnouncementView = ({ announcements, isAdmin, onOpenAdd, onDelete, 
                     </div>
                   )}
                 </div>
-                <h3 className={`font-bold text-lg mb-2 leading-tight ${isHistorical ? 'text-slate-600' : 'text-slate-900'}`}>{anc.title}</h3>
+
+                <h3 className={`font-bold text-lg mb-2 leading-tight ${isHistorical ? 'text-slate-600' : 'text-slate-900'}`}>
+                    {anc.title}
+                </h3>
                 
                 {isExpanded ? (
                   <div className="animate-fadeIn cursor-text" onClick={(e) => e.stopPropagation()}>

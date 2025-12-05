@@ -12,7 +12,23 @@ const toEmail = (username) => {
 
 
 export const useAuth = () => {
- const [currentUser, setCurrentUser] = useState(JSON.parse(localStorage.getItem('pogo_current_user') || 'null'));
+ // Initial state from LocalStorage - sanitize points immediately
+ const [currentUser, setCurrentUser] = useState(() => {
+    try {
+        const stored = JSON.parse(localStorage.getItem('pogo_current_user') || 'null');
+        if (stored && typeof stored === 'object') {
+            // Ensure points is a number if it exists
+            if (stored.points !== undefined) {
+                stored.points = Number(stored.points) || 0;
+            }
+            return stored;
+        }
+        return null;
+    } catch (e) {
+        return null;
+    }
+ });
+ 
  const [loading, setLoading] = useState(true); // 初始 loading 設為 true 以避免畫面閃爍
  const { showToast } = useToast();
 
@@ -35,18 +51,16 @@ export const useAuth = () => {
                email: user.email,
                firestoreId: querySnapshot.docs[0].id,
                // 確保 isAdmin 欄位存在
-               isAdmin: !!userData.isAdmin
+               isAdmin: !!userData.isAdmin,
+               // Force points to be a number
+               points: Number(userData.points) || 0
              };
              setCurrentUser(fullUser);
              localStorage.setItem('pogo_current_user', JSON.stringify(fullUser));
            } else {
               // 雖然登入成功 (密碼對)，但資料庫沒這個人 (或被 Rules 擋住)
               console.warn("User data not found or permission denied.");
-              // 選擇性：是否要強制登出？
-              // await signOut(auth);
-              // setCurrentUser(null);
-              // showToast("無法讀取使用者資料，請聯繫管理員", "error");
-             
+              
               // 暫時允許登入，但可能沒權限做事
               const fallbackUser = {
                   uid: user.email.split('@')[0],
@@ -108,7 +122,13 @@ export const useAuth = () => {
  const updateCurrentUser = (newData) => {
    setCurrentUser(prev => {
        if (!prev) return null;
-       const updated = { ...prev, ...newData };
+       // Ensure points are sanitized in updates too
+       const sanitizedData = { ...newData };
+       if (sanitizedData.points !== undefined) {
+           sanitizedData.points = Number(sanitizedData.points) || 0;
+       }
+       
+       const updated = { ...prev, ...sanitizedData };
        localStorage.setItem('pogo_current_user', JSON.stringify(updated));
        return updated;
    });
@@ -117,4 +137,3 @@ export const useAuth = () => {
 
  return { currentUser, loading, login, logout, updateCurrentUser };
 };
-

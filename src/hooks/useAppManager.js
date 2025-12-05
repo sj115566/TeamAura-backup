@@ -246,9 +246,13 @@ export const useAppManager = () => {
            showToast("找不到該筆資料，請重新整理", "error");
        }
    },
-   updateAnnouncement: (id, title, content, rawFiles) => {
+   // 更新：增加 category 和 isPinned 參數
+   addAnnouncement: (title, content, rawFiles, category, isPinned) => 
+       adminActions.addAnnouncement(title, content, rawFiles, category, isPinned),
+
+   updateAnnouncement: (id, title, content, rawFiles, category, isPinned) => {
        const item = announcements.find(x => x.id === id);
-       if(item) return adminActions.updateAnnouncement(item, title, content, rawFiles);
+       if(item) return adminActions.updateAnnouncement(item, title, content, rawFiles, category, isPinned);
    },
    updateGame: (data) => {
        const item = games.find(g => g.id === data.id);
@@ -305,4 +309,3 @@ export const useAppManager = () => {
    setDialog
  };
 };
-

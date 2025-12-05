@@ -114,25 +114,18 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
 
 
      // 3. 加總原始分數
-     // 這裡假設 submissions 中的 points 欄位現在儲存的就是原始分
      snapshot.forEach(doc => {
          const data = doc.data();
-         // 優先使用 basePoints，如果沒有則使用 points (相容舊資料)
          const points = data.basePoints !== undefined ? Number(data.basePoints) : Number(data.points);
          totalBasePoints += (points || 0);
      });
 
 
-     // 4. 計算加成後的總分 (總分 = 總原始分 * 倍率 -> 四捨五入)
-     // 修正：根據您的需求，是每一筆乘完再加總，還是加總後乘？
-     // 您之前的需求是「四捨五入的小數點可能會影響之後加總的分數」，所以我們維持逐筆計算
-     // 但為了 O(n) 效率且不讀寫 submission，我們可以在這裡模擬逐筆計算
-    
+     // 4. 計算加成後的總分
      let newTotalPoints = 0;
      snapshot.forEach(doc => {
          const data = doc.data();
          const base = data.basePoints !== undefined ? Number(data.basePoints) : Number(data.points);
-         // 這裡直接計算最終得分並累加，但不寫回 submission
          newTotalPoints += Math.round(base * multiplier);
      });
     
@@ -172,7 +165,7 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
      await addDoc(collection(db, "submissions"), {
        id: `s_${Date.now()}`, uid: currentUser.uid, username: currentUser.username,
        taskId: data.task.id, taskTitle: data.task.title,
-       points: basePoints, // 預設存原始分
+       points: basePoints,
        basePoints: basePoints,
        status: 'pending', proof: data.proof || '無備註', timestamp: new Date().toISOString(),
        images: JSON.stringify(imageUrls), week: data.task.week, season: currentSeason
@@ -186,13 +179,11 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
    }, "已撤回"),
 
 
-   // 審核邏輯更新：只更新狀態與原始分，不計算加成寫入
    review: (sub, action, points, statusOverride) => execute(async () => {
        if (!sub || !sub.firestoreId) throw new Error("無效的提交紀錄");
 
 
        const newStatus = statusOverride || (action === 'approve' ? 'approved' : 'rejected');
-       // 这里的 points 是管理員輸入的原始分
        let basePoints = Number(points) || 0;
       
        const user = users.find(u => u.uid === sub.uid);
@@ -201,15 +192,12 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
 
        const subRef = doc(db, "submissions", sub.firestoreId);
       
-       // 更新 submission：points 欄位現在只存原始分
        await updateDoc(subRef, {
            status: newStatus,
-           points: basePoints, // points 現在等於 basePoints
+           points: basePoints,
            basePoints: basePoints
        });
       
-       // 觸發該使用者的總分重算
-       // 注意：這是非同步的，我們等待它完成以確保 UI 總分即時更新
        const currentSeason = getValidSeason();
        await recalculateUserPoints(sub.uid, user.firestoreId, currentSeason);
 
@@ -217,25 +205,41 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
    }, "操作成功"),
 
 
-   addAnnouncement: (title, content, rawFiles = []) => execute(async () => {
+   // 修改：支援 category 和 isPinned
+   addAnnouncement: (title, content, rawFiles = [], category = '一般', isPinned = false) => execute(async () => {
        const currentSeason = getValidSeason();
        let imageUrls = [];
        if (rawFiles.length > 0) imageUrls = await uploadImages(rawFiles);
        await addDoc(collection(db, "announcements"), {
-           id: `a_${Date.now()}`, title, content, author: currentUser.username,
-           timestamp: new Date().toISOString(), images: JSON.stringify(imageUrls), season: currentSeason
+           id: `a_${Date.now()}`, 
+           title, 
+           content, 
+           category,
+           isPinned,
+           author: currentUser.username,
+           timestamp: new Date().toISOString(), 
+           images: JSON.stringify(imageUrls), 
+           season: currentSeason
        });
    }, "公告已發佈"),
 
 
-   updateAnnouncement: (item, title, content, rawFiles = []) => execute(async () => {
+   // 修改：支援 category 和 isPinned
+   updateAnnouncement: (item, title, content, rawFiles = [], category = '一般', isPinned = false) => execute(async () => {
        if (!item?.firestoreId) throw new Error("無效的公告 ID");
        let imageUrls = [];
        let existingImages = [];
        try { existingImages = JSON.parse(item.images || '[]'); } catch(e){}
        if (rawFiles?.length > 0) imageUrls = await uploadImages(rawFiles);
        const finalImages = [...existingImages, ...imageUrls];
-       await updateDoc(doc(db, "announcements", item.firestoreId), { title, content, images: JSON.stringify(finalImages) });
+       
+       await updateDoc(doc(db, "announcements", item.firestoreId), { 
+           title, 
+           content, 
+           category,
+           isPinned,
+           images: JSON.stringify(finalImages) 
+       });
    }, "公告已更新"),
 
 
@@ -276,7 +280,6 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
    }, "身分組已新增"),
 
 
-   // 更新身分組邏輯：更新後只重算 user points
    updateRole: (id, data) => execute(async () => {
        if (!id) throw new Error("無效的 ID");
       
@@ -297,7 +300,6 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
 
             const affectedUsers = users.filter(u => (u.roles || []).includes(codeToFind));
            
-            // 這裡只會更新 User 的 points，不會遍歷更新 submissions
             for (const user of affectedUsers) {
                 await recalculateUserPoints(user.uid, user.firestoreId, currentSeason, updatedRoles);
             }
@@ -451,4 +453,3 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
 
  return { actions, adminLoading };
 };
-
