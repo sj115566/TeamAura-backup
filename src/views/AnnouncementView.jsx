@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Icon } from '../components/Icons';
@@ -20,6 +20,13 @@ export const AnnouncementView = ({ announcements, isAdmin, onOpenAdd, onDelete, 
     setExpandedIds(prev => ({...prev, [id]: !prev[id]})); 
   };
 
+  // 從 HTML 內容中提取圖片 URL
+  const extractImagesFromHtml = (html) => {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const imgs = doc.querySelectorAll('img');
+      return Array.from(imgs).map(img => img.src);
+  };
+
   return (
     <div className="space-y-4 animate-fadeIn">
       <div className="flex items-center justify-between">
@@ -32,7 +39,12 @@ export const AnnouncementView = ({ announcements, isAdmin, onOpenAdd, onDelete, 
       </div>
       <div className="space-y-4">
         {announcements && announcements.length > 0 ? announcements.map(anc => {
-          const images = JSON.parse(anc.images || '[]');
+          const attachmentImages = JSON.parse(anc.images || '[]');
+          const contentImages = extractImagesFromHtml(anc.content);
+          
+          // 合併附件圖片與內文圖片用於預覽 (去重複)
+          const allImages = Array.from(new Set([...attachmentImages, ...contentImages]));
+
           const isExpanded = !!expandedIds[anc.id];
           const plainText = anc.content.replace(/<[^>]+>/g, '');
           const previewText = plainText.length > 50 ? plainText.slice(0, 50) + '...' : plainText;
@@ -101,21 +113,38 @@ export const AnnouncementView = ({ announcements, isAdmin, onOpenAdd, onDelete, 
                 
                 {isExpanded ? (
                   <div className="animate-fadeIn cursor-text" onClick={(e) => e.stopPropagation()}>
-                    <div className="text-sm text-slate-700 leading-relaxed mb-3 ql-editor px-0" dangerouslySetInnerHTML={{ __html: anc.content }}></div>
-                    {images.length > 0 && (
-                      <div className={`grid gap-1 mt-2 rounded-lg overflow-hidden ${images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                        {images.map((url, idx) => (
-                          <div key={idx} onClick={() => setViewingImg(url)} className={`relative cursor-pointer group ${images.length === 3 && idx === 0 ? 'col-span-2' : ''}`}>
-                            <img 
-                              src={url} 
-                              className="w-full h-full object-cover max-h-[300px] hover:opacity-90 transition-opacity" 
-                              alt="announcement" 
-                              loading="lazy" 
-                            />
-                          </div>
-                        ))}
+                    <div 
+                        className="text-sm text-slate-700 leading-relaxed mb-3 ql-editor px-0 
+                                   [&_img]:max-h-60 [&_img]:w-auto [&_img]:max-w-full [&_img]:rounded-lg 
+                                   [&_img]:my-2 [&_img]:cursor-pointer [&_img]:shadow-sm [&_img]:border [&_img]:border-gray-100 [&_img]:hover:opacity-90 transition-opacity" 
+                        dangerouslySetInnerHTML={{ __html: anc.content }}
+                        onClick={(e) => {
+                            // 圖片點擊事件代理
+                            if (e.target.tagName === 'IMG') {
+                                setViewingImg(e.target.src);
+                            }
+                        }}
+                    ></div>
+                    
+                    {/* 顯示附件圖片 (如果有) */}
+                    {attachmentImages.length > 0 && (
+                      <div className="mt-2 border-t border-gray-100 pt-2">
+                        <div className="text-xs text-gray-400 font-bold mb-2">附件圖片</div>
+                        <div className={`grid gap-1 rounded-lg overflow-hidden ${attachmentImages.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                            {attachmentImages.map((url, idx) => (
+                            <div key={idx} onClick={() => setViewingImg(url)} className={`relative cursor-pointer group ${attachmentImages.length === 3 && idx === 0 ? 'col-span-2' : ''}`}>
+                                <img 
+                                src={url} 
+                                className="w-full h-full object-cover max-h-[300px] hover:opacity-90 transition-opacity" 
+                                alt="attachment" 
+                                loading="lazy" 
+                                />
+                            </div>
+                            ))}
+                        </div>
                       </div>
                     )}
+
                     <div 
                       className="text-center mt-4 pt-2 border-t border-gray-100 text-xs font-bold cursor-pointer text-indigo-400 hover:text-indigo-600 transition-colors" 
                       onClick={() => toggleExpand(anc.id)}
@@ -126,13 +155,28 @@ export const AnnouncementView = ({ announcements, isAdmin, onOpenAdd, onDelete, 
                 ) : (
                   <div className="text-sm text-gray-500">
                     <div className="line-clamp-2">{previewText || <span className="italic text-gray-300">無文字內容...</span>}</div>
+                    
+                    {/* 摺疊預覽圖片：顯示前 3 張 (包含內文與附件) */}
+                    {allImages.length > 0 && (
+                        <div className="flex gap-2 mt-3 overflow-hidden">
+                            {allImages.slice(0, 3).map((url, idx) => (
+                                <img 
+                                    key={idx} 
+                                    src={url} 
+                                    className="w-16 h-16 object-cover rounded-lg border border-gray-100" 
+                                    alt="preview" 
+                                />
+                            ))}
+                            {allImages.length > 3 && (
+                                <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-500 font-bold">
+                                    +{allImages.length - 3}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     <div className="flex items-center gap-3 mt-3 text-[10px] text-gray-400 font-bold">
                       <span className="text-indigo-500">點擊查看詳情</span>
-                      {images.length > 0 && (
-                        <span className="flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded-full">
-                          <Icon name="Image" className="w-3 h-3"/> {images.length} 張圖片
-                        </span>
-                      )}
                     </div>
                   </div>
                 )}

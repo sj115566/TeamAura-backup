@@ -137,6 +137,18 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
 
 
  const actions = {
+   // ▼▼▼ 新增：提供給 RichTextEditor 使用的單張圖片上傳功能 ▼▼▼
+   uploadSingleImage: async (file) => {
+        try {
+            const urls = await uploadImages([file]);
+            return urls[0];
+        } catch (error) {
+            console.error("Editor upload failed", error);
+            throw error;
+        }
+   },
+   // ▲▲▲ 新增結束 ▲▲▲
+
    addTask: (taskData) => execute(async () => {
      const currentSeason = getValidSeason();
      await addDoc(collection(db, "tasks"), {
@@ -147,6 +159,11 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
      });
    }, "任務新增成功"),
 
+   updateTask: (taskId, taskData) => execute(async () => {
+     if (!taskId) throw new Error("無效的任務 ID");
+     const { id, createdAt, season, firestoreId, ...updateFields } = taskData;
+     await updateDoc(doc(db, "tasks", taskId), updateFields);
+   }, "任務更新成功"),
 
    deleteTask: (firestoreId) => execute(async () => {
      if (!firestoreId || typeof firestoreId !== 'string') throw new Error("無效的任務 ID");
@@ -224,12 +241,20 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
    }, "公告已發佈"),
 
 
-   // 修改：支援 category 和 isPinned
-   updateAnnouncement: (item, title, content, rawFiles = [], category = '一般', isPinned = false) => execute(async () => {
+   // 修改：支援 category, isPinned 和 keepOldImages
+   // keepOldImages: 陣列，包含要保留的舊圖片 URL (不含本次新上傳的)
+   updateAnnouncement: (item, title, content, rawFiles = [], category = '一般', isPinned = false, keepOldImages) => execute(async () => {
        if (!item?.firestoreId) throw new Error("無效的公告 ID");
        let imageUrls = [];
+       
+       // 如果沒有傳 keepOldImages，預設行為是保留所有舊圖 (向後相容)
        let existingImages = [];
-       try { existingImages = JSON.parse(item.images || '[]'); } catch(e){}
+       if (keepOldImages) {
+           existingImages = keepOldImages;
+       } else {
+           try { existingImages = JSON.parse(item.images || '[]'); } catch(e){}
+       }
+
        if (rawFiles?.length > 0) imageUrls = await uploadImages(rawFiles);
        const finalImages = [...existingImages, ...imageUrls];
        

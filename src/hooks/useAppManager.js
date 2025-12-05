@@ -246,18 +246,33 @@ export const useAppManager = () => {
            showToast("找不到該筆資料，請重新整理", "error");
        }
    },
-   // 更新：增加 category 和 isPinned 參數
+   
    addAnnouncement: (title, content, rawFiles, category, isPinned) => 
        adminActions.addAnnouncement(title, content, rawFiles, category, isPinned),
 
-   updateAnnouncement: (id, title, content, rawFiles, category, isPinned) => {
+   // 修正：補上 keepOldImages 參數傳遞，解決附件無法刪除的問題
+   updateAnnouncement: (id, title, content, rawFiles, category, isPinned, keepOldImages) => {
        const item = announcements.find(x => x.id === id);
-       if(item) return adminActions.updateAnnouncement(item, title, content, rawFiles, category, isPinned);
+       if(item) return adminActions.updateAnnouncement(item, title, content, rawFiles, category, isPinned, keepOldImages);
    },
+   
+   // 新增：uploadSingleImage 轉發
+   uploadSingleImage: adminActions.uploadSingleImage,
+
    updateGame: (data) => {
        const item = games.find(g => g.id === data.id);
        if(item) return adminActions.updateGame(item, data);
    },
+   
+   updateTask: (id, data) => {
+        const item = tasks.find(t => t.id === id);
+        // 需要傳入 firestoreId 才能更新
+        if(item) return adminActions.updateTask(item.firestoreId, data);
+        else if(data.firestoreId) return adminActions.updateTask(data.firestoreId, data);
+   },
+
+   addTask: adminActions.addTask,
+   addGame: adminActions.addGame,
   
    hardResetSystem: () => {
        setDialog({
