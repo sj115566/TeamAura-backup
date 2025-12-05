@@ -195,7 +195,7 @@ export const TaskListView = ({
                                     className="p-2 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors"
                                     title="複製此任務"
                                 >
-                                    <Icon name="RefreshCw" className="w-4 h-4" /> {/* 使用 Refresh 代表複製/重覆 */}
+                                    <Icon name="Copy" className="w-4 h-4" /> {/* 使用 Refresh 代表複製/重覆 */}
                                 </button>
                                 <Button variant="danger" className="p-2 rounded-lg" onClick={() => onDeleteTask(task.id)}>
                                     <Icon name="Trash2" className="w-4 h-4" />
