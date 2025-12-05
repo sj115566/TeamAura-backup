@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Icon } from '../components/Icons';
@@ -15,6 +15,18 @@ const categoryColors = {
 export const AnnouncementView = ({ announcements, isAdmin, onOpenAdd, onDelete, onOpenEdit, currentSeason, isHistoryMode }) => {
   const [viewingImg, setViewingImg] = useState(null);
   const [expandedIds, setExpandedIds] = useState({});
+  
+  // 使用 ref 來追蹤是否已經執行過初始化展開，避免每次 render 都重置
+  const hasInitialized = useRef(false);
+
+  useEffect(() => {
+    // 只有在公告載入完成，且尚未初始化過時執行
+    if (announcements && announcements.length > 0 && !hasInitialized.current) {
+        // 預設展開第一則
+        setExpandedIds({ [announcements[0].id]: true });
+        hasInitialized.current = true;
+    }
+  }, [announcements]);
 
   const toggleExpand = (id) => { 
     setExpandedIds(prev => ({...prev, [id]: !prev[id]})); 
@@ -119,14 +131,12 @@ export const AnnouncementView = ({ announcements, isAdmin, onOpenAdd, onDelete, 
                                    [&_img]:my-2 [&_img]:cursor-pointer [&_img]:shadow-sm [&_img]:border [&_img]:border-gray-100 [&_img]:hover:opacity-90 transition-opacity" 
                         dangerouslySetInnerHTML={{ __html: anc.content }}
                         onClick={(e) => {
-                            // 圖片點擊事件代理
                             if (e.target.tagName === 'IMG') {
                                 setViewingImg(e.target.src);
                             }
                         }}
                     ></div>
                     
-                    {/* 顯示附件圖片 (如果有) */}
                     {attachmentImages.length > 0 && (
                       <div className="mt-2 border-t border-gray-100 pt-2">
                         <div className="text-xs text-gray-400 font-bold mb-2">附件圖片</div>
@@ -156,7 +166,6 @@ export const AnnouncementView = ({ announcements, isAdmin, onOpenAdd, onDelete, 
                   <div className="text-sm text-gray-500">
                     <div className="line-clamp-2">{previewText || <span className="italic text-gray-300">無文字內容...</span>}</div>
                     
-                    {/* 摺疊預覽圖片：顯示前 3 張 (包含內文與附件) */}
                     {allImages.length > 0 && (
                         <div className="flex gap-2 mt-3 overflow-hidden">
                             {allImages.slice(0, 3).map((url, idx) => (

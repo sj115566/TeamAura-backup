@@ -4,7 +4,8 @@ import {
   Loader2, Check, X, Calendar, ChevronDown, ChevronRight, 
   Trash2, Plus, Edit2, Gamepad, Bell, Map, Trophy, User, Table, 
   ArrowDown, ArrowUp, Camera, Image, Archive, LogOut, Shield, History, 
-  RefreshCw, Circle, Copy, Smile
+  RefreshCw, Circle, Copy, Smile, 
+  ChevronsDown, ChevronsUp // <--- 新增這兩個
 } from 'lucide-react';
 
 // 建立映射表
@@ -12,7 +13,8 @@ const iconMap = {
   Loader2, Check, X, Calendar, ChevronDown, ChevronRight, 
   Trash2, Plus, Edit2, Gamepad, Bell, Map, Trophy, User, Table, 
   ArrowDown, ArrowUp, Camera, Image, Archive, LogOut, Shield, History, 
-  RefreshCw, Circle, Copy, Smile
+  RefreshCw, Circle, Copy, Smile,
+  ChevronsDown, ChevronsUp // <--- 註冊
 };
 
 export const Icon = ({ name, className, ...props }) => {

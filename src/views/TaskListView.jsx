@@ -24,7 +24,10 @@ export const TaskListView = ({
     onDeleteTask, 
     onOpenWithdraw, 
     onOpenEditTask, 
+    onEditTask, 
     onDuplicateTask,
+    onExpandAll,
+    onCollapseAll,
     isHistoryMode 
 }) => {
   const [sortOrder, setSortOrder] = useState('desc');
@@ -79,7 +82,7 @@ export const TaskListView = ({
     return sortedWeeks.map(w => ({ week: w, tasks: grouped[w] }));
   }, [tasks, sortOrder, filterStatus, filterCategory, submissions, currentUser]);
 
-  // 計算所有可用的分類 (從任務中動態取得，以防有舊資料或自訂分類)
+  // 計算所有可用的分類
   const availableCategories = useMemo(() => {
       const cats = new Set(['一般', '每日', '每週', '挑戰', '賽季']);
       tasks.forEach(t => t.category && cats.add(t.category));
@@ -93,13 +96,15 @@ export const TaskListView = ({
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <h2 className="font-bold text-slate-700 text-lg">任務列表</h2>
-              <button 
-                onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')} 
-                className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-400 transition-colors"
-                title="切換週次排序"
-              >
-                <Icon name={sortOrder === 'desc' ? "ArrowDown" : "ArrowUp"} className="w-4 h-4" />
-              </button>
+              <div className="flex gap-1">
+                  <button 
+                    onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')} 
+                    className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-400 transition-colors"
+                    title="切換週次排序"
+                  >
+                    <Icon name={sortOrder === 'desc' ? "ArrowDown" : "ArrowUp"} className="w-4 h-4" />
+                  </button>
+              </div>
             </div>
             {isAdmin && !isHistoryMode && (
               <Button variant="primary" className="text-xs px-3 py-1.5" onClick={onOpenEditTask} icon="Plus">
@@ -108,39 +113,66 @@ export const TaskListView = ({
             )}
           </div>
 
-          {/* 篩選器區域 */}
-          <div className="flex flex-col sm:flex-row gap-2">
-              {/* 狀態篩選 Segmented Control */}
-              <div className="bg-slate-200 p-1 rounded-lg flex text-xs font-bold text-slate-500 sm:w-auto w-full">
-                  <button 
-                    onClick={() => setFilterStatus('incomplete')}
-                    className={`flex-1 sm:flex-none px-3 py-1.5 rounded-md transition-all ${filterStatus === 'incomplete' ? 'bg-white text-indigo-600 shadow-sm' : 'hover:text-slate-700'}`}
+          {/* 篩選器與操作區域 */}
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+              {/* 左側：篩選條件群組 (狀態 + 分類) */}
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  {/* 狀態篩選 Segmented Control */}
+                  <div className="bg-slate-200 p-1 rounded-lg flex text-xs font-bold text-slate-500 w-full sm:w-auto">
+                      <button 
+                        onClick={() => setFilterStatus('incomplete')}
+                        className={`flex-1 sm:flex-none px-3 py-1.5 rounded-md transition-all whitespace-nowrap ${filterStatus === 'incomplete' ? 'bg-white text-indigo-600 shadow-sm' : 'hover:text-slate-700'}`}
+                      >
+                        未完成
+                      </button>
+                      <button 
+                        onClick={() => setFilterStatus('complete')}
+                        className={`flex-1 sm:flex-none px-3 py-1.5 rounded-md transition-all whitespace-nowrap ${filterStatus === 'complete' ? 'bg-white text-indigo-600 shadow-sm' : 'hover:text-slate-700'}`}
+                      >
+                        已完成
+                      </button>
+                      <button 
+                        onClick={() => setFilterStatus('all')}
+                        className={`flex-1 sm:flex-none px-3 py-1.5 rounded-md transition-all whitespace-nowrap ${filterStatus === 'all' ? 'bg-white text-indigo-600 shadow-sm' : 'hover:text-slate-700'}`}
+                      >
+                        全部
+                      </button>
+                  </div>
+
+                  {/* 分類篩選 Dropdown */}
+                  <select 
+                      value={filterCategory} 
+                      onChange={(e) => setFilterCategory(e.target.value)}
+                      className="bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg px-2 py-1.5 outline-none focus:border-indigo-500 w-full sm:w-auto min-w-[100px]"
                   >
-                    未完成
-                  </button>
-                  <button 
-                    onClick={() => setFilterStatus('all')}
-                    className={`flex-1 sm:flex-none px-3 py-1.5 rounded-md transition-all ${filterStatus === 'all' ? 'bg-white text-indigo-600 shadow-sm' : 'hover:text-slate-700'}`}
-                  >
-                    全部
-                  </button>
-                  <button 
-                    onClick={() => setFilterStatus('complete')}
-                    className={`flex-1 sm:flex-none px-3 py-1.5 rounded-md transition-all ${filterStatus === 'complete' ? 'bg-white text-indigo-600 shadow-sm' : 'hover:text-slate-700'}`}
-                  >
-                    已完成
-                  </button>
+                      <option value="all">所有分類</option>
+                      {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
               </div>
 
-              {/* 分類篩選 Dropdown */}
-              <select 
-                value={filterCategory} 
-                onChange={(e) => setFilterCategory(e.target.value)}
-                className="bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg px-2 py-1.5 outline-none focus:border-indigo-500"
-              >
-                  <option value="all">所有分類</option>
-                  {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              {/* 中間間隔：使用 flex-1 自動推開，達成您想要的空白效果 */}
+              <div className="flex-1 hidden sm:block"></div>
+
+              {/* 右側：全部展開/折疊按鈕 */}
+              <div className="flex justify-end">
+                <div className="flex bg-white border border-slate-200 rounded-lg p-0.5 shrink-0">
+                    <button 
+                        onClick={onExpandAll} 
+                        className="p-1.5 rounded hover:bg-slate-100 text-slate-400 transition-colors"
+                        title="展開全部週次"
+                    >
+                        <Icon name="ChevronsDown" className="w-4 h-4" />
+                    </button>
+                    <div className="w-[1px] bg-slate-100 my-1"></div>
+                    <button 
+                        onClick={onCollapseAll} 
+                        className="p-1.5 rounded hover:bg-slate-100 text-slate-400 transition-colors"
+                        title="折疊全部週次"
+                    >
+                        <Icon name="ChevronsUp" className="w-4 h-4" />
+                    </button>
+                </div>
+              </div>
           </div>
       </div>
 
@@ -189,13 +221,23 @@ export const TaskListView = ({
                         {isAdmin ? (
                           !isHistoryMode && (
                             <>
+                                {/* 編輯按鈕 */}
+                                <button 
+                                    onClick={() => onEditTask(task)} 
+                                    className="p-2 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-blue-600 transition-colors"
+                                    title="編輯任務"
+                                >
+                                    <Icon name="Edit2" className="w-4 h-4" />
+                                </button>
+
                                 {/* 複製按鈕 */}
                                 <button 
                                     onClick={() => onDuplicateTask(task)} 
                                     className="p-2 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors"
                                     title="複製此任務"
                                 >
-                                    <Icon name="Copy" className="w-4 h-4" /> {/* 使用 Refresh 代表複製/重覆 */}
+                                    {/* 使用 Copy Icon */}
+                                    <Icon name="Copy" className="w-4 h-4" /> 
                                 </button>
                                 <Button variant="danger" className="p-2 rounded-lg" onClick={() => onDeleteTask(task.id)}>
                                     <Icon name="Trash2" className="w-4 h-4" />

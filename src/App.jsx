@@ -76,12 +76,7 @@ const AppContent = () => {
  const handleAnnounceImageUpload = (e) => {
    const files = Array.from(e.target.files);
    if (files.length > 0) {
-     // 這裡需要累積圖片，而不是覆蓋
-     // 並且要處理 rawFiles (用於上傳) 和 images (用於預覽)
-     // 注意：既有的 Firebase URL 圖片沒有 rawFile，新選擇的有
-     
      const newImageUrls = files.map(f => URL.createObjectURL(f));
-     
      setAnnounceModal(prev => ({ 
          ...prev, 
          rawFiles: [...(prev.rawFiles || []), ...files], 
@@ -90,66 +85,9 @@ const AppContent = () => {
    }
  };
 
- // 新增：移除附件圖片
  const handleRemoveAnnounceImage = (index) => {
     setAnnounceModal(prev => {
         const newImages = [...prev.images];
-        const newRawFiles = prev.rawFiles ? [...prev.rawFiles] : [];
-        
-        // 判斷要移除的是既有圖片(Firebase URL)還是新選圖片
-        // 這邊邏輯比較複雜，簡單做法是假設 images 和 rawFiles 的對應關係
-        // 但因為既有圖片沒有 rawFile，所以我們只能從 images 移除
-        // 如果移除的是新圖片，也要從 rawFiles 移除對應項目
-        
-        // 簡化策略：只操作 images 陣列，上傳時只上傳 rawFiles，
-        // 但更新時要確保保留的舊圖片 URL 還在。
-        // 不過這裡的 rawFiles 是用來 *新增* 的。
-        // 如果使用者刪除了 *新選擇* 的圖片，我們需要從 rawFiles 移除它。
-        // 這需要知道哪些 image 對應哪個 rawFile。
-        
-        // 為了簡化，我們這裡只實作從預覽中移除。
-        // 對於新上傳的檔案，如果使用者想移除，可能需要清空重選。
-        // 進階實作需要追蹤每個預覽圖的來源。
-        
-        // 修正策略：
-        // 1. 移除 images 中的項目
-        // 2. 如果該 index 對應的是新檔案 (index >= 舊圖片數量)，則移除 rawFiles 中的對應項目
-        
-        // 計算舊圖片數量 (沒有 rawFile 的)
-        // 這在混合編輯時有點困難，因為我們沒有分開存。
-        
-        // 簡單解法：
-        // 直接移除 images[index]。
-        // 如果是新檔案，這會導致 submit 時多上傳但沒用到 (因為我們只存 images 陣列到 DB)。
-        // 不，updateAnnouncement 邏輯是：合併舊 images + 上傳新 rawFiles。
-        // 所以這裡我們只需要維護一個「最終要保留的圖片列表」和「要上傳的新檔案列表」。
-        
-        // 暫時解法：只允許移除 `images` 預覽。
-        // 對於新檔案，不從 rawFiles 移除 (會上傳但可能不會顯示在最終 images 陣列中，如果後端邏輯是 append 的話)。
-        // 檢查 useAdmin.js 的 updateAnnouncement：
-        // const finalImages = [...existingImages, ...imageUrls]; 
-        // 它會合併 "現有" 和 "新上傳"。這表示我們在前端修改 `images` 陣列沒用，因為後端是用 `existingImages` (從 DB 讀) + 新上傳。
-        
-        // 這表示 useAdmin.js 的 updateAnnouncement 需要修改，應該接受一個 `finalImageList` 參數，而不是自己去合併。
-        // 但現在我們不動 useAdmin.js。
-        
-        // Workaround:
-        // 我們在前端維護 `images` 陣列。
-        // 點擊刪除時，從 `images` 移除。
-        // 如果是新圖片 (Blob URL)，也嘗試從 `rawFiles` 移除 (這比較難對應)。
-        
-        // 更好的 Workaround:
-        // 讓使用者只能 "清空所有附件" 或 "刪除特定附件"。
-        
-        // 讓我們實作簡單的刪除：從 `images` 移除。
-        // 但因為 `updateAnnouncement` 的邏輯限制，我們無法精確控制。
-        // **我們必須修改 `useAdmin.js` 才能真正支援刪除舊圖片**。
-        // 但您沒有要求修改 `useAdmin.js`。
-        
-        // 等等，您的需求是 "沒辦法刪掉舊的圖片"。
-        // 這意味著我 **必須** 修改 `useAdmin.js` 的 `updateAnnouncement`，
-        // 讓它接受「最終想要保留的圖片列表」。
-        
         newImages.splice(index, 1);
         return { ...prev, images: newImages };
     });
@@ -179,12 +117,6 @@ const AppContent = () => {
 
 
  const handleAddAnnouncement = async () => {
-   // 這邊需要特別處理圖片邏輯
-   // 我們傳遞 announceModal.images 給後端，這包含了「想要保留的舊圖片 URL」
-   // 對於新圖片 (Blob URL)，我們不傳給後端 (因為後端存不了 Blob)，而是傳 rawFiles 讓後端上傳並取得新 URL
-   // 然後後端應該把「舊圖片 URL」和「新上傳的 URL」合併存入。
-   
-   // 過濾出非 Blob 的舊圖片
    const keepOldImages = announceModal.images.filter(url => !url.startsWith('blob:'));
    
    let success = false;
@@ -193,10 +125,10 @@ const AppContent = () => {
            announceModal.id, 
            announceModal.title, 
            announceModal.content, 
-           announceModal.rawFiles, // 新檔案
+           announceModal.rawFiles, 
            announceModal.category,
            announceModal.isPinned,
-           keepOldImages // 新增參數：要保留的舊圖片
+           keepOldImages 
         );
    } else {
        success = await actions.addAnnouncement(
@@ -405,6 +337,8 @@ const AppContent = () => {
            })}
            onEditTask={handleOpenEditTask}
            onDuplicateTask={handleDuplicateTask}
+           onExpandAll={actions.expandAllWeeks} // 傳遞全部展開
+           onCollapseAll={actions.collapseAllWeeks} // 傳遞全部折疊
          />
        )}
        {activeTab === 'leaderboard' && (

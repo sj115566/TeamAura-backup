@@ -96,6 +96,17 @@ export const useAppManager = () => {
    toggleWeek: (week) => {
      setExpandedWeeks(prev => ({ ...prev, [week]: !prev[week] }));
    },
+
+   // ▼▼▼ 新增：全部展開 ▼▼▼
+   expandAllWeeks: () => {
+       const all = {};
+       tasks.forEach(t => { if(t.week) all[t.week] = true; });
+       setExpandedWeeks(all);
+   },
+   // ▼▼▼ 新增：全部折疊 ▼▼▼
+   collapseAllWeeks: () => {
+       setExpandedWeeks({});
+   },
   
    refresh: () => {
        if (needRefresh) {
@@ -250,13 +261,11 @@ export const useAppManager = () => {
    addAnnouncement: (title, content, rawFiles, category, isPinned) => 
        adminActions.addAnnouncement(title, content, rawFiles, category, isPinned),
 
-   // 修正：補上 keepOldImages 參數傳遞，解決附件無法刪除的問題
    updateAnnouncement: (id, title, content, rawFiles, category, isPinned, keepOldImages) => {
        const item = announcements.find(x => x.id === id);
        if(item) return adminActions.updateAnnouncement(item, title, content, rawFiles, category, isPinned, keepOldImages);
    },
    
-   // 新增：uploadSingleImage 轉發
    uploadSingleImage: adminActions.uploadSingleImage,
 
    updateGame: (data) => {
@@ -266,7 +275,6 @@ export const useAppManager = () => {
    
    updateTask: (id, data) => {
         const item = tasks.find(t => t.id === id);
-        // 需要傳入 firestoreId 才能更新
         if(item) return adminActions.updateTask(item.firestoreId, data);
         else if(data.firestoreId) return adminActions.updateTask(data.firestoreId, data);
    },
