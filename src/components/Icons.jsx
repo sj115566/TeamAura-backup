@@ -1,22 +1,20 @@
 import React from 'react';
-// 只引入有用到的 Icon，大幅減少打包體積 (Tree-shaking)
 import { 
   Loader2, Check, X, Calendar, ChevronDown, ChevronRight, 
   Trash2, Plus, Edit2, Gamepad, Bell, Map, Trophy, User, Table, 
   ArrowDown, ArrowUp, Camera, Image, Archive, LogOut, Shield, History, 
   RefreshCw, Circle, Copy, Smile, 
-  ChevronsDown, ChevronsUp,
-  Pin // <--- 新增 Pin Icon
+  ChevronsDown, ChevronsUp, Pin,
+  Sun, Moon // 新增這兩個
 } from 'lucide-react';
 
-// 建立映射表
 const iconMap = {
   Loader2, Check, X, Calendar, ChevronDown, ChevronRight, 
   Trash2, Plus, Edit2, Gamepad, Bell, Map, Trophy, User, Table, 
   ArrowDown, ArrowUp, Camera, Image, Archive, LogOut, Shield, History, 
   RefreshCw, Circle, Copy, Smile,
-  ChevronsDown, ChevronsUp,
-  Pin // <--- 註冊
+  ChevronsDown, ChevronsUp, Pin,
+  Sun, Moon // 註冊這兩個
 };
 
 export const Icon = ({ name, className, ...props }) => {

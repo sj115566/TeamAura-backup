@@ -5,11 +5,11 @@ import { VitePWA } from 'vite-plugin-pwa'
 // ⚠️ 請將這裡改成你的 GitHub Repository 名稱
 // 例如：如果你的網址是 https://user.github.io/team-aura-pogo/
 // 這裡就要填 '/team-aura-pogo/' (前後都要有斜線)
-const REPO_NAME = '/TeamAura-backup/'; 
+// const REPO_NAME = '/TeamAura-backup/'; 
 
 export default defineConfig({
   // 設定基礎路徑，解決 404 問題
-  base: REPO_NAME,
+  base: './',
   plugins: [
     react(),
     VitePWA({
