@@ -6,9 +6,8 @@ import { Icon } from '../components/Icons';
 import { Modal } from '../components/ui/Modal';
 import { AdminConsole } from '../components/AdminConsole';
 
-// 增加接收 users 參數
 export const ProfileView = ({ 
-    currentUser, tasks, submissions, users, onLogout, isAdmin, 
+    currentUser, tasks, submissions,users, onLogout, isAdmin, 
     onReview, onInitialize, onHardReset, isHistoryMode, 
     roles, onAddRole, onUpdateRole, onDeleteRole,
     categories, onAddCategory, onUpdateCategory, onDeleteCategory,
@@ -73,6 +72,22 @@ export const ProfileView = ({
       else onAddCategory(data);
       setCatModal({ isOpen: false, id: null, label: '', color: '#6366f1', type: 'task', isSystem: false, systemTag: null });
   };
+
+  // ▼▼▼ 新增：處理刪除分類的邏輯，包含系統標籤的警告 ▼▼▼
+  const handleDeleteCat = (cat) => {
+      const isSystemTag = !!cat.systemTag || ['每日', '常駐'].includes(cat.label);
+      if (isSystemTag) {
+          if (!window.confirm(`⚠️ 警告：\n「${cat.label}」被標記為系統保留標籤 (${cat.systemTag || 'System'})。\n\n刪除它可能會導致對應區塊（如每日挑戰、常駐區塊）無法抓取到任務。\n\n如果您是為了刪除重複的標籤，請確認您保留了至少一個正確的系統標籤。\n\n確定要強制刪除嗎？`)) {
+              return;
+          }
+      } else {
+          if (!window.confirm(`確定要刪除分類「${cat.label}」嗎？`)) {
+              return;
+          }
+      }
+      onDeleteCategory(cat.firestoreId);
+  };
+  // ▲▲▲ 新增結束 ▲▲▲
 
   const toggleCategoryExpand = (type) => {
       setCategoryExpanded(prev => ({ ...prev, [type]: !prev[type] }));
@@ -218,11 +233,11 @@ export const ProfileView = ({
                                         <button onClick={() => handleOpenEditCat(cat)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-indigo-500 transition-colors">
                                             <Icon name="Edit2" className="w-3.5 h-3.5"/>
                                         </button>
-                                        {!isSystemTag && (
-                                            <button onClick={() => onDeleteCategory(cat.firestoreId)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-red-500 transition-colors">
-                                                <Icon name="Trash2" className="w-3.5 h-3.5"/>
-                                            </button>
-                                        )}
+                                        {/* ▼▼▼ 修改：顯示刪除按鈕，但透過 handleDeleteCat 進行警告 ▼▼▼ */}
+                                        <button onClick={() => handleDeleteCat(cat)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-red-500 transition-colors">
+                                            <Icon name="Trash2" className="w-3.5 h-3.5"/>
+                                        </button>
+                                        {/* ▲▲▲ 修改結束 ▲▲▲ */}
                                     </div>
                                 </div>
                             );
@@ -239,6 +254,7 @@ export const ProfileView = ({
   return (
     <div className="animate-fadeIn space-y-6">
       <Card className="text-center">
+        {/* ... (頂部使用者資訊保持不變) ... */}
         <h2 className="font-black text-xl text-slate-800 break-all mb-2">{currentUser.username || currentUser.uid}</h2>
         {myRoleBadges.length > 0 && (
           <div className="flex items-center justify-center gap-2 flex-wrap mb-3">
@@ -295,7 +311,6 @@ export const ProfileView = ({
         </div>
       )}
 
-      {/* 傳遞 users 給 AdminConsole */}
       {isAdmin && <AdminConsole pendingSubs={pendingSubs} processedSubs={processedSubs} tasks={tasks} onReview={onReview} showHistory={showHistory} toggleHistory={() => setShowHistory(!showHistory)} isHistoryMode={isHistoryMode} users={users} />}
      
       {isAdmin && !isHistoryMode && (
@@ -325,7 +340,7 @@ export const ProfileView = ({
                       <h3 className="font-bold text-slate-700 text-sm">分類標籤管理</h3>
                       {onRestoreDefaultCategories && (
                         <button 
-                            onClick={() => window.confirm("確定要匯入預設分類標籤？\n這將會補齊缺少的預設分類，並修復現有分類的系統標籤(System Tag)連結。\n請在修改過標籤名稱後執行此操作以確保任務分組正確。") && onRestoreDefaultCategories()}
+                            onClick={() => window.confirm("確定要匯入預設分類標籤？\n這將會補齊缺少的預設分類，並修復現有分類的系統標籤(System Tag)連結。\n\n系統會優先保留您已修改過的分類（若它具有 System Tag），而不會重複建立。") && onRestoreDefaultCategories()}
                             className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded hover:bg-gray-200"
                         >
                             匯入預設
@@ -357,6 +372,7 @@ export const ProfileView = ({
           </div>
       )}
 
+      {/* Role & Category Modals */}
       <Modal isOpen={roleModal.isOpen} onClose={() => setRoleModal({ ...roleModal, isOpen: false })} title={roleModal.id ? "編輯身分組" : "新增身分組"}>
           <div className="space-y-4">
               <div><label className="text-xs font-bold text-gray-500">代號 (唯一 ID)</label><input className="w-full p-2 border rounded mt-1 text-sm" placeholder="如: vip, mod" value={roleModal.code} onChange={e => setRoleModal({...roleModal, code: e.target.value})} disabled={!!roleModal.id} /></div>

@@ -279,33 +279,38 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
        }
    }, "系統初始化完成！"),
 
-   // ▼▼▼ 修正：遷移時移除 '賽季' 的 systemTag ▼▼▼
+   // ▼▼▼ 修正：防重複匯入邏輯 ▼▼▼
    restoreDefaultCategories: () => execute(async () => {
        const catRef = collection(db, "categories");
        const catSnap = await getDocs(catRef);
-       let categoryMap = {};
-       
+       let categoryMap = {}; // 用來存 Label-Type -> ID
+       let existingSystemTags = new Set(); // 用來存已經存在的 System Tag (如 'daily', 'pinned')
+
        const catBatch = writeBatch(db);
        let updatedCount = 0;
 
+       // 1. 先掃描現有的分類
        catSnap.docs.forEach(d => {
            const data = d.data();
            const key = `${data.label}-${data.type || 'task'}`;
            categoryMap[key] = d.id;
 
-           // 檢查並補上或移除 systemTag
-           // 注意：要移除 systemTag，我們這裡將其設為 null，
-           // 配合前端的判斷 (!!cat.systemTag) 即可視為非系統標籤
-           let newSystemTag = undefined; // undefined 表示不變更
+           // 收集已存在的 systemTag (即使 label 被改名了)
+           if (data.systemTag) {
+               existingSystemTags.add(data.systemTag);
+           }
 
+           // 補上 systemTag (Migration)
+           let newSystemTag = undefined; 
            if (data.type === 'task') {
                if (data.label === '每日' && !data.systemTag) {
                    newSystemTag = 'daily';
+                   existingSystemTags.add('daily'); // 標記已存在
                } else if (data.label === '常駐' && !data.systemTag) {
                    newSystemTag = 'pinned';
+                   existingSystemTags.add('pinned');
                } else if (data.label === '賽季' && data.systemTag === 'seasonal') {
-                   // 如果目前是 seasonal，將其設為 null 以解除系統保留狀態
-                   newSystemTag = null;
+                   newSystemTag = null; // 移除 systemTag
                }
            }
            
@@ -315,12 +320,13 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
            }
        });
 
+       // 2. 定義預設分類
        const defaultCats = [
            { label: '一般', color: '#64748b', type: 'task' },
            { label: '每日', color: '#f97316', type: 'task', systemTag: 'daily' }, 
            { label: '每週', color: '#3b82f6', type: 'task' },
            { label: '挑戰', color: '#8b5cf6', type: 'task' },
-           { label: '賽季', color: '#eab308', type: 'task' }, // No systemTag
+           { label: '賽季', color: '#eab308', type: 'task' },
            { label: '常駐', color: '#ef4444', type: 'task', systemTag: 'pinned' },
            { label: '一般', color: '#64748b', type: 'announcement' },
            { label: '活動', color: '#22c55e', type: 'announcement' },
@@ -331,6 +337,12 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
        
        let addedCount = 0;
        for(const c of defaultCats) {
+           // 規則 1: 如果該分類有 systemTag，且資料庫中已經有這個 systemTag 了 -> 跳過不新增
+           if (c.systemTag && existingSystemTags.has(c.systemTag)) {
+               continue; 
+           }
+
+           // 規則 2: 檢查 Label-Type 是否存在
            const key = `${c.label}-${c.type}`;
            if (!categoryMap[key]) {
                const docRef = await addDoc(catRef, c);
@@ -343,6 +355,7 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
            await catBatch.commit();
        }
 
+       // ... (後面的任務連結遷移邏輯保持不變) ...
        const taskRef = collection(db, "tasks");
        const taskSnap = await getDocs(taskRef);
        const dataBatch = writeBatch(db);
@@ -371,6 +384,7 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
        if (dataUpdateCount > 0) { await dataBatch.commit(); }
        console.log(`Migration: +${addedCount} cats, Updated ${updatedCount} cat-tags, ${dataUpdateCount} items.`);
    }, "資料遷移與系統標籤更新完成！"),
+   // ▲▲▲ 修正結束 ▲▲▲
 
    fixSubmissionLinks: () => execute(async () => {
        console.log("開始修復提交連結...");
