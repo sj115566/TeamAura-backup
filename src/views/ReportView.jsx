@@ -5,7 +5,7 @@ import { Icon } from '../components/Icons';
 
 
 export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHistoryMode, onExport, roles }) => {
-  // 輔助函數：計算倍率 (與 useAdmin 保持一致)
+  // 輔助函數：計算倍率 (與 useAppManager 保持一致)
  const getMultiplier = (userRoleCodes, allRoles = roles) => {
      const safeRoles = allRoles || [];
      const userRoles = userRoleCodes || [];
@@ -15,7 +15,7 @@ export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHisto
          const rate = Number(r.multiplier) || 1;
          totalExtra += (rate - 1);
      });
-     return Math.max(0, 1 + totalExtra);
+     return Math.max(1, 1 + totalExtra);
  };
 
 
@@ -67,19 +67,20 @@ export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHisto
      const multiplier = getMultiplier(u.roles);
     
      sortedWeeks.forEach(w => {
-       let wTotal = 0;
+       let wTotalBase = 0;
        w.tasks.forEach(t => {
          const rawPts = subMap.get(`${u.uid}_${t.id}`);
         
          // 報表中單項任務顯示原始分
          taskPoints[t.id] = rawPts !== undefined ? rawPts : null;
         
-         // 週總分計算加成後的分數
+         // 累加該週的原始分
          if (rawPts !== undefined) {
-            wTotal += Math.round(rawPts * multiplier);
+            wTotalBase += rawPts;
          }
        });
-       weekTotals[w.week] = wTotal;
+       // 該週總分 = 原始總分 * 倍率
+       weekTotals[w.week] = Math.round(wTotalBase * multiplier);
      });
     
      return { user: u, weekTotals, taskPoints, multiplier };
@@ -225,4 +226,3 @@ export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHisto
    </div>
  );
 };
-

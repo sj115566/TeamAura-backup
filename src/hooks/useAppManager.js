@@ -7,7 +7,6 @@ import { db } from '../services/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
-
 export const useAppManager = () => {
  const [activeTab, setActiveTab] = useState('announcements');
  const [expandedWeeks, setExpandedWeeks] = useState({});
@@ -15,9 +14,7 @@ export const useAppManager = () => {
  const [exporting, setExporting] = useState(false);
   const [notifications, setNotifications] = useState({ announcements: false, tasks: false });
 
-
  const { showToast } = useToast();
-
 
  const {
    needRefresh: [needRefresh, setNeedRefresh],
@@ -31,28 +28,22 @@ export const useAppManager = () => {
    },
  });
 
-
  const { currentUser, loading: authLoading, login, logout, updateCurrentUser } = useAuth();
-
 
  const {
      tasks, submissions, users, announcements, games, seasonName,
      currentSeason, selectedSeason, setSelectedSeason, availableSeasons, isHistoryMode,
-     seasonGoal, seasonGoalTitle, roles
+     seasonGoal, seasonGoalTitle, roles, categories 
  } = useData(currentUser, updateCurrentUser);
 
-
  const { actions: adminActions, adminLoading } = useAdmin(currentUser, seasonName, users, roles);
-
 
  useEffect(() => {
    if (!currentUser || isHistoryMode) return;
 
-
    const checkNewContent = () => {
        const lastViewedAnc = localStorage.getItem('lastViewed_announcements') || 0;
        const lastViewedTask = localStorage.getItem('lastViewed_tasks') || 0;
-
 
        const hasNewAnc = announcements.some(a => new Date(a.timestamp).getTime() > lastViewedAnc);
       
@@ -61,19 +52,15 @@ export const useAppManager = () => {
            return time > lastViewedTask;
        });
 
-
        setNotifications({
            announcements: hasNewAnc && activeTab !== 'announcements',
            tasks: hasNewTask && activeTab !== 'tasks'
        });
    };
 
-
    checkNewContent();
  }, [announcements, tasks, activeTab, currentUser, isHistoryMode]);
 
-
- // 內部輔助：計算倍率
  const getMultiplier = (userRoleCodes) => {
      const safeRoles = roles || [];
      const userRoles = userRoleCodes || [];
@@ -83,9 +70,8 @@ export const useAppManager = () => {
          const rate = Number(r.multiplier) || 1;
          totalExtra += (rate - 1);
      });
-     return Math.max(0, 1 + totalExtra);
+     return Math.max(1, 1 + totalExtra);
  };
-
 
  const uiActions = {
    setTab: (tab) => {
@@ -93,19 +79,13 @@ export const useAppManager = () => {
        localStorage.setItem(`lastViewed_${tab}`, Date.now());
        setNotifications(prev => ({ ...prev, [tab]: false }));
    },
-   toggleWeek: (week) => {
-     setExpandedWeeks(prev => ({ ...prev, [week]: !prev[week] }));
+   
+   toggleWeek: (key) => {
+     setExpandedWeeks(prev => ({ ...prev, [key]: !prev[key] }));
    },
 
-   // ▼▼▼ 新增：全部展開 ▼▼▼
-   expandAllWeeks: () => {
-       const all = {};
-       tasks.forEach(t => { if(t.week) all[t.week] = true; });
-       setExpandedWeeks(all);
-   },
-   // ▼▼▼ 新增：全部折疊 ▼▼▼
-   collapseAllWeeks: () => {
-       setExpandedWeeks({});
+   batchSetExpanded: (updates) => {
+       setExpandedWeeks(prev => ({ ...prev, ...updates }));
    },
   
    refresh: () => {
@@ -124,7 +104,6 @@ export const useAppManager = () => {
        setSelectedSeason(season);
        showToast(`已切換至 ${season}` + (season !== currentSeason ? " (歷史模式)" : ""));
    },
-
 
    exportReport: async () => {
      setExporting(true);
@@ -145,14 +124,11 @@ export const useAppManager = () => {
            allSubmissions = submissions.filter(s => s.status === 'approved');
        }
 
-
        const reportUsers = users.filter(u => !u.isAdmin);
        const subMap = new Map();
        allSubmissions.forEach(s => {
-           // 注意：這裡是原始分
            subMap.set(`${s.uid}_${s.taskId}`, Number(s.points) || 0);
        });
-
 
        const sortedTasks = [...tasks].sort((a, b) => {
            const wa = parseInt(a.week) || 999;
@@ -160,22 +136,15 @@ export const useAppManager = () => {
            return wa === wb ? String(a.id).localeCompare(String(b.id)) : wa - wb;
        });
 
-
        const headers = ['User ID', 'Username', 'Roles', 'Total Points', ...sortedTasks.map(t => `[W${t.week}] ${t.title}`)];
       
        const rows = reportUsers.map(u => {
-           // 計算該使用者的倍率
            const multiplier = getMultiplier(u.roles);
-          
            let total = 0;
            const taskCols = sortedTasks.map(t => {
                const rawPts = subMap.get(`${u.uid}_${t.id}`) || 0;
-               // 累加時才計算加成
                const weightedPts = Math.round(rawPts * multiplier);
                total += weightedPts;
-
-
-               // 報表個別任務顯示原始分數
                return rawPts;
            });
            const safeUid = `"${u.uid}"`;
@@ -187,10 +156,8 @@ export const useAppManager = () => {
            }).join(';');
            const safeRolesStr = `"${userRoles}"`;
 
-
            return [safeUid, safeName, safeRolesStr, total, ...taskCols].join(',');
        });
-
 
        const csvString = '\uFEFF' + [headers.join(','), ...rows].join('\n');
        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
@@ -210,7 +177,6 @@ export const useAppManager = () => {
        setExporting(false);
      }
    },
-
 
    deleteTask: (id) => {
      const task = tasks.find(t => t.id === id);
@@ -258,12 +224,12 @@ export const useAppManager = () => {
        }
    },
    
-   addAnnouncement: (title, content, rawFiles, category, isPinned) => 
-       adminActions.addAnnouncement(title, content, rawFiles, category, isPinned),
+   addAnnouncement: (title, content, rawFiles, category, isPinned, categoryId) => 
+       adminActions.addAnnouncement(title, content, rawFiles, category, isPinned, categoryId),
 
-   updateAnnouncement: (id, title, content, rawFiles, category, isPinned, keepOldImages) => {
+   updateAnnouncement: (id, title, content, rawFiles, category, isPinned, keepOldImages, categoryId) => {
        const item = announcements.find(x => x.id === id);
-       if(item) return adminActions.updateAnnouncement(item, title, content, rawFiles, category, isPinned, keepOldImages);
+       if(item) return adminActions.updateAnnouncement(item, title, content, rawFiles, category, isPinned, keepOldImages, categoryId);
    },
    
    uploadSingleImage: adminActions.uploadSingleImage,
@@ -273,20 +239,24 @@ export const useAppManager = () => {
        if(item) return adminActions.updateGame(item, data);
    },
    
-   updateTask: (id, data) => {
-        const item = tasks.find(t => t.id === id);
-        if(item) return adminActions.updateTask(item.firestoreId, data);
-        else if(data.firestoreId) return adminActions.updateTask(data.firestoreId, data);
+   updateTask: (firestoreId, data) => {
+       return adminActions.updateTask(firestoreId, data);
    },
 
    addTask: adminActions.addTask,
    addGame: adminActions.addGame,
-  
+   
+   addCategory: adminActions.addCategory,
+   updateCategory: adminActions.updateCategory,
+   deleteCategory: adminActions.deleteCategory,
+   
+   restoreDefaultCategories: adminActions.restoreDefaultCategories,
+
    hardResetSystem: () => {
        setDialog({
            isOpen: true,
            title: "⚠️ 強制重置警告",
-           message: "此操作將「永久刪除」所有任務、公告與提交紀錄，並將使用者積分歸零！這通常只在系統剛架設或嚴重錯誤時使用。\n\n確定要執行嗎？",
+           message: "此操作將「永久刪除」所有任務、公告與提交紀錄！",
            onConfirm: async () => {
                await adminActions.hardResetSystem();
                setDialog(prev => ({ ...prev, isOpen: false }));
@@ -297,29 +267,40 @@ export const useAppManager = () => {
    initializeSystem: adminActions.initializeSystem
  };
 
-
- useMemo(() => {
+ // ▼▼▼ 修正：任務列表預設展開邏輯 ▼▼▼
+ useEffect(() => {
+   // 只有在任務已載入，且尚未有任何展開設定時執行
    if (tasks.length > 0 && Object.keys(expandedWeeks).length === 0) {
-       const weeks = tasks.map(t => parseInt(t.week) || 0);
-       if (weeks.length > 0) setExpandedWeeks({ [Math.max(...weeks)]: true });
-   }
- }, [tasks]);
+       const updates = {};
+       
+       // 1. 預設展開「常駐與公告」區塊
+       updates['pinned-main'] = true;
 
+       // 2. 找出最大週次 (最新的一週)
+       const weeks = tasks.map(t => parseInt(t.week)).filter(n => !isNaN(n));
+       if (weeks.length > 0) {
+           const maxWeek = Math.max(...weeks);
+           // 預設展開「每日挑戰」與「賽季進度」的最新一週
+           updates[`daily-${maxWeek}`] = true;
+           updates[`weekly-${maxWeek}`] = true;
+       }
+       
+       setExpandedWeeks(updates);
+   }
+ }, [tasks]); // 依賴 tasks，當資料載入後執行
+ // ▲▲▲ 修正結束 ▲▲▲
 
  const sortedUsers = useMemo(() => {
    return [...users].filter(u => !u.isAdmin).sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0));
  }, [users]);
 
-
  return {
    state: {
-     tasks, submissions, users, announcements, games, currentUser, roles,
+     tasks, submissions, users, announcements, games, currentUser, roles, 
+     categories, 
      activeTab, loading: authLoading || adminLoading || exporting, expandedWeeks, seasonName, refreshing: false,
      currentSeason, selectedSeason, availableSeasons, isHistoryMode,
-     needRefresh,
-     notifications,
-     seasonGoal,
-     seasonGoalTitle
+     needRefresh, notifications, seasonGoal, seasonGoalTitle
    },
    actions: {
      login,
