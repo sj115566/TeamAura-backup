@@ -71,13 +71,24 @@ export const useData = (currentUser, updateCurrentUser) => {
        const catsRef = collection(db, "categories");
        unsubCats = onSnapshot(catsRef, (s) => {
            const rawCats = s.docs.map(d => ({ ...d.data(), firestoreId: d.id }));
-           // 前端排序
+           
+           // ▼▼▼ 修改：排序邏輯 ▼▼▼
            rawCats.sort((a, b) => {
+               // 1. 先照類型分 (Task / Announcement)
                const typeA = a.type || 'task';
                const typeB = b.type || 'task';
                if (typeA !== typeB) return typeA.localeCompare(typeB);
+               
+               // 2. 系統保留標籤 (systemTag 存在) 排在最前面
+               const sysA = !!a.systemTag;
+               const sysB = !!b.systemTag;
+               if (sysA !== sysB) return sysB ? 1 : -1; // 有 systemTag 的排前面 (true > false, sort: -1)
+
+               // 3. 最後照名稱排序
                return (a.label || '').localeCompare(b.label || '');
            });
+           // ▲▲▲ 修改結束 ▲▲▲
+
            setCategories(rawCats);
        }, (error) => {
            console.error("Categories fetch error:", error);

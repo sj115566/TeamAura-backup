@@ -4,17 +4,32 @@ import { Badge } from './ui/Badge';
 import { Modal } from './ui/Modal';
 import { Icon } from './Icons';
 
-
-export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, showHistory, toggleHistory, isHistoryMode }) => {
+// 接收 users 參數以進行即時查找
+export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, showHistory, toggleHistory, isHistoryMode, users = [] }) => {
  const [viewing, setViewing] = useState(null);
  const [editSub, setEditSub] = useState(null);
  const [inputPoints, setInputPoints] = useState({});
-
 
  const handlePointChange = (subId, value) => {
    setInputPoints(prev => ({ ...prev, [subId]: value }));
  };
 
+ // 輔助函式：取得最新的顯示名稱
+ const getLatestDisplayName = (sub) => {
+    // 1. 優先透過 userDocId (唯一識別碼) 查找目前的使用者資料
+    if (sub.userDocId) {
+        const foundUser = users.find(u => u.firestoreId === sub.userDocId);
+        if (foundUser) return foundUser.username;
+    }
+    
+    // 2. 如果沒有 userDocId (舊資料)，嘗試用 uid (當時的 username) 查找是否還存在該使用者
+    // 注意：舊資料的 uid 就是 username
+    const foundUserByUid = users.find(u => u.username === sub.uid);
+    if (foundUserByUid) return foundUserByUid.username;
+
+    // 3. 如果都找不到 (使用者可能已被刪除)，回退顯示紀錄中的快照資料
+    return sub.username || sub.uid;
+ };
 
  return (
    <div className="bg-slate-800 text-white p-5 rounded-2xl shadow-lg mt-6">
@@ -31,7 +46,6 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
        </button>
      </div>
 
-
      {/* 待審核區塊 - 僅在非歷史模式顯示 */}
      {!isHistoryMode && (
        pendingSubs.length > 0 ? (
@@ -42,8 +56,10 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
              const isVari = task?.type === 'variable';
              const currentPoints = inputPoints[sub.id] || '';
 
+             // 使用輔助函式取得最新名稱
+             const displayName = getLatestDisplayName(sub);
+             const displayId = sub.userDocId ? `(ID: ...${sub.userDocId.slice(-4)})` : '';
 
-             // 修正：計算正確的原始分數傳遞給審核函數
              let pointsToPass = 0;
              if (isVari) {
                  pointsToPass = currentPoints;
@@ -57,11 +73,12 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
                  }
              }
 
-
              return (
                <div key={sub.id} className="bg-slate-700 p-4 rounded-xl border border-slate-600">
                  <div className="flex justify-between text-xs text-slate-400 mb-2">
-                   <span className="font-bold text-slate-200">{sub.uid}</span>
+                   <span className="font-bold text-slate-200">
+                       {displayName} <span className="text-slate-500 font-normal scale-90">{displayId}</span>
+                   </span>
                    <span className="bg-slate-600 px-1.5 rounded text-white">W{sub.week}</span>
                  </div>
                  <div className="font-bold text-lg mb-1">{sub.taskTitle}</div>
@@ -82,7 +99,6 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
                    </div>
                  )}
 
-
                  {isVari && (
                    <input
                      type="number"
@@ -92,7 +108,6 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
                      className="w-full p-2 mb-3 bg-slate-800 text-white border border-slate-600 rounded text-sm outline-none focus:border-indigo-500 transition-colors"
                    />
                  )}
-
 
                  <div className="flex gap-2">
                    <Button
@@ -119,7 +134,6 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
        )
      )}
 
-
      {/* 歷史紀錄區塊 - 只要 showHistory 為 true 就顯示 */}
      {showHistory && (
        <div className={`border-t border-slate-700 pt-4 mt-4 animate-fadeIn ${isHistoryMode ? 'border-t-0 pt-0 mt-0' : ''}`}>
@@ -128,11 +142,14 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
          <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
            {processedSubs.map(sub => {
              const isApproved = sub.status === 'approved';
+             // 歷史紀錄也同步使用最新名稱
+             const displayName = getLatestDisplayName(sub);
+
              return (
                <div key={sub.id} className="bg-slate-700/50 p-3 rounded-lg flex justify-between items-center text-xs border border-slate-700">
                  <div className="flex-1">
                    <div className="flex gap-2 mb-1 items-center">
-                     <span className="font-bold text-slate-200">{sub.uid}</span>
+                     <span className="font-bold text-slate-200">{displayName}</span>
                      <Badge color={sub.status==='approved'?'green':'red'}>{sub.status}</Badge>
                    </div>
                    <div className="text-slate-400 truncate">{sub.taskTitle}</div>
@@ -159,7 +176,6 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
        </div>
      )}
 
-
      {viewing && (
        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 p-4" onClick={() => setViewing(null)}>
          <img src={viewing} className="max-w-full max-h-full rounded shadow-2xl" alt="proof full" />
@@ -167,11 +183,13 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
        </div>
      )}
 
-
      <Modal isOpen={!!editSub} title="修正紀錄" onClose={() => setEditSub(null)}>
        {editSub && (
          <div className="space-y-4 text-slate-800">
-           <div className="text-xs bg-gray-50 p-2 rounded">ID: {editSub.uid}<br/>Task: {editSub.taskTitle}</div>
+           <div className="text-xs bg-gray-50 p-2 rounded">
+               User: {getLatestDisplayName(editSub)}<br/>
+               Task: {editSub.taskTitle}
+           </div>
            <div>
              <label className="text-xs font-bold text-gray-500">狀態</label>
              <select
@@ -215,4 +233,3 @@ export const AdminConsole = ({ pendingSubs, processedSubs, tasks, onReview, show
    </div>
  );
 };
-

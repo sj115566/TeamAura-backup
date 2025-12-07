@@ -38,7 +38,6 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
    } finally { setAdminLoading(false); }
  };
 
- // ... (其他 helper 函式保持不變: clearCollection, getValidSeason, calculateMultiplier, recalculateUserPoints) ...
  const clearCollection = async (collectionName) => {
    const q = query(collection(db, collectionName));
    const snapshot = await getDocs(q);
@@ -62,18 +61,37 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
      return Math.max(1, 1 + totalExtra);
  };
 
- const recalculateUserPoints = async (userId, userDocId, currentSeason, currentRoles = roles) => {
-     const q = query(collection(db, "submissions"), where("uid", "==", userId), where("season", "==", currentSeason), where("status", "==", "approved"));
-     const snapshot = await getDocs(q);
+ const recalculateUserPoints = async (username, userDocId, currentSeason, currentRoles = roles) => {
+     const subRef = collection(db, "submissions");
+     const queries = [];
+     
+     if (userDocId) {
+         queries.push(query(subRef, where("userDocId", "==", userDocId), where("season", "==", currentSeason), where("status", "==", "approved")));
+     }
+     
+     if (username) {
+         queries.push(query(subRef, where("uid", "==", username), where("season", "==", currentSeason), where("status", "==", "approved")));
+     }
+
+     const results = await Promise.all(queries.map(q => getDocs(q)));
+     
+     const uniqueSubs = new Map();
+     results.forEach(snapshot => {
+         snapshot.forEach(doc => {
+             uniqueSubs.set(doc.id, doc.data());
+         });
+     });
+
      const userDocSnap = await getDoc(doc(db, "users", userDocId));
      if (!userDocSnap.exists()) return;
      const userData = userDocSnap.data();
      const multiplier = calculateMultiplier(userData.roles, currentRoles);
+     
      let totalBasePoints = 0;
-     snapshot.forEach(doc => {
-         const data = doc.data();
+     uniqueSubs.forEach(data => {
          totalBasePoints += (data.basePoints !== undefined ? Number(data.basePoints) : Number(data.points)) || 0;
      });
+     
      let newTotalPoints = Math.round(totalBasePoints * multiplier);
      await updateDoc(doc(db, "users", userDocId), { points: newTotalPoints });
  };
@@ -106,10 +124,20 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
      if (data.rawFiles?.length > 0) imageUrls = await uploadImages(data.rawFiles);
      const basePoints = data.task.type === 'fixed' ? (Number(data.task.points) || 0) : 0;
      await addDoc(collection(db, "submissions"), {
-       id: `s_${Date.now()}`, uid: currentUser.uid, username: currentUser.username,
-       taskId: data.task.id, taskTitle: data.task.title,
-       points: basePoints, basePoints: basePoints, status: 'pending', proof: data.proof || '無備註', timestamp: new Date().toISOString(),
-       images: JSON.stringify(imageUrls), week: data.task.week, season: currentSeason
+       id: `s_${Date.now()}`, 
+       uid: currentUser.username, 
+       userDocId: currentUser.firestoreId,
+       username: currentUser.username,
+       taskId: data.task.id, 
+       taskTitle: data.task.title,
+       points: basePoints, 
+       basePoints: basePoints, 
+       status: 'pending', 
+       proof: data.proof || '無備註', 
+       timestamp: new Date().toISOString(),
+       images: JSON.stringify(imageUrls), 
+       week: data.task.week, 
+       season: currentSeason
      });
    }, "提交成功"),
 
@@ -119,10 +147,10 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
    }, "已撤回"),
 
    review: (sub, action, inputPoints, statusOverride) => execute(async () => {
-       // ... (保持原樣)
        if (!sub || !sub.firestoreId) throw new Error("無效的提交紀錄");
        const newStatus = statusOverride || (action === 'approve' ? 'approved' : 'rejected');
        let finalBasePoints = Number(inputPoints) || 0;
+       
        if (newStatus === 'approved') {
            try {
                const tasksRef = collection(db, "tasks");
@@ -137,19 +165,28 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
                }
            } catch (e) { console.warn("同步任務分數失敗", e); }
        } else if (newStatus === 'rejected') finalBasePoints = 0;
-       const user = users.find(u => u.uid === sub.uid);
-       if (!user || !user.firestoreId) return;
+
+       let user = null;
+       if (sub.userDocId) {
+           user = users.find(u => u.firestoreId === sub.userDocId);
+       }
+       if (!user) {
+           user = users.find(u => u.uid === sub.uid);
+       }
+
        const subRef = doc(db, "submissions", sub.firestoreId);
        await updateDoc(subRef, { status: newStatus, points: finalBasePoints, basePoints: finalBasePoints });
-       const currentSeason = getValidSeason();
-       await recalculateUserPoints(sub.uid, user.firestoreId, currentSeason);
+       
+       if (user && user.firestoreId) {
+           const currentSeason = getValidSeason();
+           await recalculateUserPoints(user.username, user.firestoreId, currentSeason);
+       }
    }, "操作成功"),
 
    addAnnouncement: (title, content, rawFiles = [], category = '一般', isPinned = false, categoryId = null) => execute(async () => {
        const currentSeason = getValidSeason();
        let imageUrls = [];
        if (rawFiles.length > 0) imageUrls = await uploadImages(rawFiles);
-       // 務必寫入 categoryId
        await addDoc(collection(db, "announcements"), {
            id: `a_${Date.now()}`, title, content, category, categoryId, isPinned, author: currentUser.username, timestamp: new Date().toISOString(), images: JSON.stringify(imageUrls), season: currentSeason
        });
@@ -161,7 +198,6 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
        let existingImages = keepOldImages ? keepOldImages : JSON.parse(item.images || '[]');
        if (rawFiles?.length > 0) imageUrls = await uploadImages(rawFiles);
        const finalImages = [...existingImages, ...imageUrls];
-       // 務必更新 categoryId
        await updateDoc(doc(db, "announcements", item.firestoreId), { title, content, category, categoryId, isPinned, images: JSON.stringify(finalImages) });
    }, "公告已更新"),
 
@@ -170,7 +206,6 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
        await deleteDoc(doc(db, "announcements", firestoreId));
    }),
 
-   // ... (Game, Role, Category CRUD 保持不變) ...
    addGame: (data) => execute(async () => { await addDoc(collection(db, "games"), { ...data, id: `g_${Date.now()}` }); }, "遊戲已新增"),
    updateGame: (item, data) => execute(async () => { await updateDoc(doc(db, "games", item.firestoreId), data); }, "遊戲已更新"),
    deleteGame: (firestoreId) => execute(async () => { await deleteDoc(doc(db, "games", firestoreId)); }),
@@ -182,17 +217,16 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
    deleteCategory: (id) => execute(async () => { await deleteDoc(doc(db, "categories", id)); }, "分類已刪除"),
 
    updateUserRoles: (userId, newRoles) => execute(async () => {
-       const user = users.find(u => u.uid === userId);
+       const user = users.find(u => u.uid === userId || u.firestoreId === userId);
        if (!user) throw new Error("找不到使用者");
        await updateDoc(doc(db, "users", user.firestoreId), { roles: newRoles });
        const currentSeason = getValidSeason();
-       await recalculateUserPoints(userId, user.firestoreId, currentSeason);
+       await recalculateUserPoints(user.username, user.firestoreId, currentSeason);
    }, "使用者身分已更新"),
    updateSeasonGoal: (newGoal, newTitle) => execute(async () => { await setDoc(doc(db, "system", "config"), { seasonGoal: Number(newGoal), seasonGoalTitle: newTitle }, { merge: true }); }, "目標設定已更新"),
    archive: (newSeasonName) => execute(async () => { await setDoc(doc(db, "system", "config"), { currentSeason: newSeasonName, availableSeasons: arrayUnion(seasonName) }, { merge: true }); }, "賽季重置成功！"),
    
    hardResetSystem: () => execute(async () => {
-       // ... (保持原樣)
        console.log("⚠️ 強制重置...");
        await clearCollection("submissions");
        await clearCollection("tasks");
@@ -207,7 +241,6 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
    }, "系統已強制重置！"),
 
    initializeSystem: () => execute(async () => {
-       // ... (保持原樣)
        const taskSnap = await getDocs(collection(db, "tasks"));
        if (!taskSnap.empty) throw new Error("系統已有資料");
        const gameSnap = await getDocs(collection(db, "games"));
@@ -222,7 +255,12 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
        const catRef = collection(db, "categories");
        const catSnap = await getDocs(catRef);
        if (catSnap.empty) {
-           const defaultCats = [{ label: '一般', color: '#64748b', type: 'task' }, { label: '每日', color: '#f97316', type: 'task' }, { label: '賽季', color: '#eab308', type: 'task' }, { label: '常駐', color: '#ef4444', type: 'task' }];
+           const defaultCats = [
+               { label: '一般', color: '#64748b', type: 'task' }, 
+               { label: '每日', color: '#f97316', type: 'task', systemTag: 'daily' }, 
+               { label: '賽季', color: '#eab308', type: 'task' }, 
+               { label: '常駐', color: '#ef4444', type: 'task', systemTag: 'pinned' }
+           ];
            for(const c of defaultCats) await addDoc(catRef, c);
        }
        await setDoc(doc(db, "system", "config"), { currentSeason: "第一賽季", availableSeasons: [], seasonGoal: 10000, seasonGoalTitle: "Season Goal" }, { merge: true });
@@ -241,29 +279,49 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
        }
    }, "系統初始化完成！"),
 
-   // ▼▼▼ 關鍵修正：資料遷移 (Migration) ▼▼▼
+   // ▼▼▼ 修正：遷移時移除 '賽季' 的 systemTag ▼▼▼
    restoreDefaultCategories: () => execute(async () => {
        const catRef = collection(db, "categories");
        const catSnap = await getDocs(catRef);
-       
-       // 1. 建立「標籤名稱 -> ID」的對照表 (含類型)
-       // key: "Label-Type" (例如 "一般-task")
        let categoryMap = {};
        
-       // 載入現有分類
+       const catBatch = writeBatch(db);
+       let updatedCount = 0;
+
        catSnap.docs.forEach(d => {
            const data = d.data();
            const key = `${data.label}-${data.type || 'task'}`;
            categoryMap[key] = d.id;
+
+           // 檢查並補上或移除 systemTag
+           // 注意：要移除 systemTag，我們這裡將其設為 null，
+           // 配合前端的判斷 (!!cat.systemTag) 即可視為非系統標籤
+           let newSystemTag = undefined; // undefined 表示不變更
+
+           if (data.type === 'task') {
+               if (data.label === '每日' && !data.systemTag) {
+                   newSystemTag = 'daily';
+               } else if (data.label === '常駐' && !data.systemTag) {
+                   newSystemTag = 'pinned';
+               } else if (data.label === '賽季' && data.systemTag === 'seasonal') {
+                   // 如果目前是 seasonal，將其設為 null 以解除系統保留狀態
+                   newSystemTag = null;
+               }
+           }
+           
+           if (newSystemTag !== undefined) {
+               catBatch.update(d.ref, { systemTag: newSystemTag });
+               updatedCount++;
+           }
        });
 
        const defaultCats = [
            { label: '一般', color: '#64748b', type: 'task' },
-           { label: '每日', color: '#f97316', type: 'task' }, 
+           { label: '每日', color: '#f97316', type: 'task', systemTag: 'daily' }, 
            { label: '每週', color: '#3b82f6', type: 'task' },
            { label: '挑戰', color: '#8b5cf6', type: 'task' },
-           { label: '賽季', color: '#eab308', type: 'task' },
-           { label: '常駐', color: '#ef4444', type: 'task' },
+           { label: '賽季', color: '#eab308', type: 'task' }, // No systemTag
+           { label: '常駐', color: '#ef4444', type: 'task', systemTag: 'pinned' },
            { label: '一般', color: '#64748b', type: 'announcement' },
            { label: '活動', color: '#22c55e', type: 'announcement' },
            { label: '重要', color: '#ef4444', type: 'announcement' },
@@ -272,66 +330,73 @@ export const useAdmin = (currentUser, seasonName, users, roles = []) => {
        ];
        
        let addedCount = 0;
-       
-       // 2. 補齊缺少的預設分類
        for(const c of defaultCats) {
            const key = `${c.label}-${c.type}`;
            if (!categoryMap[key]) {
                const docRef = await addDoc(catRef, c);
-               categoryMap[key] = docRef.id; // 更新對照表
+               categoryMap[key] = docRef.id;
                addedCount++;
            }
        }
        
-       // 如果有新增分類，需要重新讀取嗎？不用，因為我們已經手動更新了 categoryMap
+       if (updatedCount > 0) {
+           await catBatch.commit();
+       }
 
-       // 3. 遷移任務資料 (將舊的 label 對應到新的 ID)
        const taskRef = collection(db, "tasks");
        const taskSnap = await getDocs(taskRef);
-       const taskBatch = writeBatch(db);
-       let taskUpdateCount = 0;
+       const dataBatch = writeBatch(db);
+       let dataUpdateCount = 0;
        
        taskSnap.forEach(t => {
            const data = t.data();
-           // 如果只有 category (舊文字) 但沒有 categoryId，或 categoryId 為空
            if (data.category && !data.categoryId) {
                const key = `${data.category}-task`;
                const targetId = categoryMap[key];
-               
-               if (targetId) {
-                   taskBatch.update(t.ref, { categoryId: targetId });
-                   taskUpdateCount++;
-               }
+               if (targetId) { dataBatch.update(t.ref, { categoryId: targetId }); dataUpdateCount++; }
            }
        });
 
-       // 4. 遷移公告資料
        const ancRef = collection(db, "announcements");
        const ancSnap = await getDocs(ancRef);
-       // 若資料量大，這裡應該分批處理，但 WebContainer 環境通常資料不多
-       let ancUpdateCount = 0;
-
        ancSnap.forEach(a => {
            const data = a.data();
            if (data.category && !data.categoryId) {
                const key = `${data.category}-announcement`;
                const targetId = categoryMap[key];
-               
-               if (targetId) {
-                   taskBatch.update(a.ref, { categoryId: targetId });
-                   ancUpdateCount++;
-               }
+               if (targetId) { dataBatch.update(a.ref, { categoryId: targetId }); dataUpdateCount++; }
            }
        });
 
-       if (taskUpdateCount > 0 || ancUpdateCount > 0) {
-           await taskBatch.commit();
+       if (dataUpdateCount > 0) { await dataBatch.commit(); }
+       console.log(`Migration: +${addedCount} cats, Updated ${updatedCount} cat-tags, ${dataUpdateCount} items.`);
+   }, "資料遷移與系統標籤更新完成！"),
+
+   fixSubmissionLinks: () => execute(async () => {
+       console.log("開始修復提交連結...");
+       const batch = writeBatch(db);
+       let count = 0;
+       const usersSnap = await getDocs(collection(db, "users"));
+       const usersMap = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+       const subsSnap = await getDocs(collection(db, "submissions"));
+       
+       subsSnap.forEach(subDoc => {
+           const subData = subDoc.data();
+           if (subData.userDocId) return;
+           const matchedUser = usersMap.find(u => u.username === subData.uid);
+           if (matchedUser) {
+               batch.update(subDoc.ref, { userDocId: matchedUser.id });
+               count++;
+           }
+       });
+
+       if (count > 0) {
+           await batch.commit();
+           console.log(`修復了 ${count} 筆提交紀錄`);
+       } else {
+           console.log("沒有需要修復的紀錄");
        }
-
-       console.log(`Migration Complete: Added ${addedCount} cats, Updated ${taskUpdateCount} tasks, ${ancUpdateCount} announcements.`);
-
-   }, "資料遷移與分類匯入完成！")
-   // ▲▲▲ 修正結束 ▲▲▲
+   }, `掃描完成，修復了連結。`)
  };
  return { actions, adminLoading };
 };

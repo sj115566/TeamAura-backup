@@ -5,7 +5,6 @@ import { Icon } from '../components/Icons';
 
 
 export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHistoryMode, onExport, roles }) => {
-  // 輔助函數：計算倍率 (與 useAppManager 保持一致)
  const getMultiplier = (userRoleCodes, allRoles = roles) => {
      const safeRoles = allRoles || [];
      const userRoles = userRoleCodes || [];
@@ -18,29 +17,36 @@ export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHisto
      return Math.max(1, 1 + totalExtra);
  };
 
-
- // 輔助函數：取得身分標籤資料
  const getUserRoleBadges = (userRoles) => {
    if (!userRoles || !roles) return [];
    return roles.filter(r => userRoles.includes(r.code));
  };
 
-
  const { weeks, rows } = useMemo(() => {
-   // 過濾掉管理員，只顯示一般成員
    const reportUsers = users.filter(u => !u.isAdmin);
   
    // 建立提交紀錄的快速查找表 (Map)
+   // key 格式: `${userKey}_${taskId}`
+   // 為了相容性，我們會建立多種 key 對應同一個 submission
    const subMap = new Map();
+   
    submissions.forEach(s => {
      if (s.status === 'approved') {
-       // submission 裡的 points 現在是原始分
-       subMap.set(`${s.uid}_${s.taskId}`, Number(s.points));
+       const pts = Number(s.points);
+       
+       // 1. 用 userDocId 當 key (新資料)
+       if (s.userDocId) {
+           subMap.set(`${s.userDocId}_${s.taskId}`, pts);
+       }
+       
+       // 2. 用 uid (username) 當 key (舊資料/備用)
+       if (s.uid) {
+           subMap.set(`${s.uid}_${s.taskId}`, pts);
+       }
      }
    });
 
 
-   // 將任務按週次分組
    const grouped = {};
    tasks.forEach(t => {
      const w = t.week || 'Other';
@@ -49,7 +55,6 @@ export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHisto
    });
 
 
-   // 排序週次 (由大到小)
    const sortedWeeks = Object.keys(grouped)
      .sort((a, b) => parseInt(b) - parseInt(a))
      .map(w => ({
@@ -58,28 +63,28 @@ export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHisto
      }));
 
 
-   // 計算每位使用者的得分矩陣
    const rowsData = reportUsers.map(u => {
      const weekTotals = {};
      const taskPoints = {};
     
-     // 計算該使用者的加成倍率
      const multiplier = getMultiplier(u.roles);
     
      sortedWeeks.forEach(w => {
        let wTotalBase = 0;
        w.tasks.forEach(t => {
-         const rawPts = subMap.get(`${u.uid}_${t.id}`);
+         // 嘗試從 Map 取得分數
+         // 優先找 ID 對應，找不到再找 Username 對應
+         let rawPts = subMap.get(`${u.firestoreId}_${t.id}`);
+         if (rawPts === undefined) {
+             rawPts = subMap.get(`${u.uid}_${t.id}`); // u.uid 即 username
+         }
         
-         // 報表中單項任務顯示原始分
          taskPoints[t.id] = rawPts !== undefined ? rawPts : null;
         
-         // 累加該週的原始分
          if (rawPts !== undefined) {
             wTotalBase += rawPts;
          }
        });
-       // 該週總分 = 原始總分 * 倍率
        weekTotals[w.week] = Math.round(wTotalBase * multiplier);
      });
     
@@ -100,10 +105,7 @@ export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHisto
      <div className="flex justify-between items-center">
        <h2 className="font-bold text-slate-700 text-lg">積分統整表</h2>
        <div className="flex gap-2">
-           {/* 新增匯出按鈕 */}
            <Button variant="secondary" className="text-xs py-1.5" onClick={onExport} icon="ArrowDown">匯出</Button>
-          
-           {/* 只有在非歷史模式下顯示重置按鈕 */}
            {!isHistoryMode && (
                <Button
                variant="danger"
@@ -122,12 +124,10 @@ export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHisto
          <table className="w-full text-sm border-collapse relative">
            <thead>
              <tr>
-               {/* 左上角固定標題 */}
                <th className="sticky top-0 left-0 z-30 bg-slate-100 border-b border-r border-slate-200 p-3 min-w-[120px] text-left font-bold text-slate-600 shadow-sm h-12">
                  User Info
                </th>
               
-               {/* 週次標題 (可點擊展開) */}
                {weeks.map(w => (
                  <th
                    key={w.week}
@@ -143,7 +143,6 @@ export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHisto
                ))}
              </tr>
             
-             {/* 第二層標題 (任務名稱) */}
              <tr>
                <th className="sticky left-0 z-20 bg-slate-50 border-r border-b border-slate-200 p-2 text-xs text-gray-400 font-normal text-left">
                  <div className="flex flex-col gap-1">
@@ -171,7 +170,6 @@ export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHisto
               
                return (
                  <tr key={row.user.uid} className="hover:bg-gray-50">
-                   {/* 使用者名稱與身分組 (左側固定) */}
                    <td className="sticky left-0 z-10 bg-white border-r border-b border-gray-100 p-3 font-bold text-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                      <div className="flex flex-col gap-1">
                        <span className="truncate max-w-[100px]" title={row.user.uid}>{row.user.uid}</span>
@@ -197,7 +195,6 @@ export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHisto
                      </div>
                    </td>
                   
-                   {/* 分數內容 */}
                    {weeks.map(w => (
                      expandedCols[w.week] ?
                        w.tasks.map(t => {
@@ -212,7 +209,6 @@ export const ReportView = ({ tasks, users, submissions, onArchiveSeason, isHisto
                          );
                        }) :
                        <td key={w.week} className="border-b border-r border-gray-100 p-2 text-center bg-indigo-50/30">
-                         {/* 這裡顯示的是加權後的總分 */}
                          <span className="font-bold text-indigo-600 text-xs">{row.weekTotals[w.week]}</span>
                        </td>
                    ))}

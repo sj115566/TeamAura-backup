@@ -6,12 +6,14 @@ import { Icon } from '../components/Icons';
 import { Modal } from '../components/ui/Modal';
 import { AdminConsole } from '../components/AdminConsole';
 
+// 增加接收 users 參數
 export const ProfileView = ({ 
-    currentUser, tasks, submissions, onLogout, isAdmin, 
+    currentUser, tasks, submissions, users, onLogout, isAdmin, 
     onReview, onInitialize, onHardReset, isHistoryMode, 
     roles, onAddRole, onUpdateRole, onDeleteRole,
     categories, onAddCategory, onUpdateCategory, onDeleteCategory,
-    onRestoreDefaultCategories 
+    onRestoreDefaultCategories,
+    onFixSubmissionLinks
 }) => {
   const [historySort, setHistorySort] = useState('desc');
   const [showHistory, setShowHistory] = useState(false);
@@ -20,7 +22,7 @@ export const ProfileView = ({
   const [categoryExpanded, setCategoryExpanded] = useState({ task: true, announcement: true });
  
   const [roleModal, setRoleModal] = useState({ isOpen: false, id: null, code: '', label: '', percentage: 0, color: '#6366f1' });
-  const [catModal, setCatModal] = useState({ isOpen: false, id: null, label: '', color: '#6366f1', type: 'task', isSystem: false });
+  const [catModal, setCatModal] = useState({ isOpen: false, id: null, label: '', color: '#6366f1', type: 'task', isSystem: false, systemTag: null });
 
   const handleOpenEditRole = (role) => {
       const pct = Math.round((role.multiplier - 1) * 100);
@@ -44,40 +46,33 @@ export const ProfileView = ({
           label: cat.label, 
           color: cat.color, 
           type: cat.type || 'task', 
-          isSystem: !!cat.isSystem 
+          isSystem: !!cat.isSystem,
+          systemTag: cat.systemTag || null 
       });
   };
 
   const handleOpenAddCat = (type = 'task') => {
-      setCatModal({ isOpen: true, id: null, label: '', color: '#6366f1', type: type, isSystem: false });
+      setCatModal({ isOpen: true, id: null, label: '', color: '#6366f1', type: type, isSystem: false, systemTag: null });
   };
 
-  // ▼▼▼ 修正：加入重複檢查邏輯 ▼▼▼
   const handleSaveCat = () => {
-      // 檢查是否有完全相同 (名稱 + 顏色 + 類型) 的標籤存在
-      // 排除掉自己 (如果是編輯模式)
-      const isDuplicate = categories.some(c => 
-          c.label === catModal.label && 
-          c.color === catModal.color && 
-          c.type === catModal.type &&
-          c.firestoreId !== catModal.id 
-      );
-
+      const isDuplicate = categories.some(c => c.label === catModal.label && c.color === catModal.color && c.type === catModal.type && c.firestoreId !== catModal.id);
       if (isDuplicate) {
-          const confirmCreate = window.confirm(
-              `系統偵測到已經存在一個名稱為「${catModal.label}」且顏色相同的標籤。\n\n建立重複的標籤可能會造成混淆，您確定要繼續嗎？`
-          );
-          if (!confirmCreate) return; // 使用者選擇取消
+          const confirmCreate = window.confirm(`系統偵測到已經存在一個名稱為「${catModal.label}」且顏色相同的標籤。\n\n建立重複的標籤可能會造成混淆，您確定要繼續嗎？`);
+          if (!confirmCreate) return;
       }
-
-      const data = { label: catModal.label, color: catModal.color, type: catModal.type, isSystem: catModal.isSystem };
+      const data = { 
+          label: catModal.label, 
+          color: catModal.color, 
+          type: catModal.type, 
+          isSystem: catModal.isSystem,
+          systemTag: catModal.systemTag 
+      };
       
       if (catModal.id) onUpdateCategory(catModal.id, data);
       else onAddCategory(data);
-      
-      setCatModal({ isOpen: false, id: null, label: '', color: '#6366f1', type: 'task', isSystem: false });
+      setCatModal({ isOpen: false, id: null, label: '', color: '#6366f1', type: 'task', isSystem: false, systemTag: null });
   };
-  // ▲▲▲ 修正結束 ▲▲▲
 
   const toggleCategoryExpand = (type) => {
       setCategoryExpanded(prev => ({ ...prev, [type]: !prev[type] }));
@@ -97,7 +92,11 @@ export const ProfileView = ({
   }, [currentUser, roles]);
 
   const { mySubs, pendingSubs, processedSubs, statsData, totalBasePoints } = useMemo(() => {
-      const my = submissions.filter(s => s.uid === currentUser.uid);
+      const my = submissions.filter(s => {
+          if (s.userDocId) return s.userDocId === currentUser.firestoreId;
+          return s.uid === (currentUser.username || currentUser.uid);
+      });
+
       const pending = isAdmin ? submissions.filter(s => s.status === 'pending') : [];
       const processed = isAdmin ? submissions.filter(s => s.status !== 'pending') : [];
       const stats = { pinned: { totalTasks: 0, completed: 0, earnedBase: 0, totalPts: 0 }, weeks: {} };
@@ -106,9 +105,8 @@ export const ProfileView = ({
       if (!isAdmin || isHistoryMode) {
         tasks.forEach(t => {
             let type = 'seasonal';
-            if (t.isPinned || t.category === '常駐') type = 'pinned';
-            else if (t.category === '每日') type = 'daily';
-
+            if (t.isPinned) type = 'pinned';
+            
             if (type === 'pinned') {
                 stats.pinned.totalTasks++;
                 stats.pinned.totalPts += (Number(t.points) || 0);
@@ -124,8 +122,7 @@ export const ProfileView = ({
                 const task = tasks.find(t => t.id === s.taskId);
                 if (task) {
                     let type = 'seasonal';
-                    if (task.isPinned || task.category === '常駐') type = 'pinned';
-                    else if (task.category === '每日') type = 'daily';
+                    if (task.isPinned) type = 'pinned';
                     
                     const base = Number(s.points) || 0;
                     totalBase += base;
@@ -156,7 +153,6 @@ export const ProfileView = ({
     });
   }, [mySubs, historySort]);
 
-  const showInitButton = tasks.length === 0;
   const myRoleBadges = useMemo(() => {
       if (!currentUser?.roles || !roles) return [];
       return (roles || []).filter(r => currentUser.roles.includes(r.code));
@@ -207,23 +203,30 @@ export const ProfileView = ({
             {isExpanded && (
                 <Card noPadding>
                     <div className="divide-y divide-gray-50">
-                        {cats.length > 0 ? cats.map((cat, index) => (
-                            <div key={cat.firestoreId || index} className="p-3 flex justify-between items-center text-sm">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[10px] px-2 py-0.5 rounded text-white font-bold shadow-sm" style={{ backgroundColor: cat.color }}>
-                                        {cat.label}
-                                    </span>
+                        {cats.length > 0 ? cats.map((cat, index) => {
+                            const isSystemTag = !!cat.systemTag || ['每日', '常駐'].includes(cat.label);
+
+                            return (
+                                <div key={cat.firestoreId || index} className="p-3 flex justify-between items-center text-sm">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] px-2 py-0.5 rounded text-white font-bold shadow-sm" style={{ backgroundColor: cat.color }}>
+                                            {cat.label}
+                                        </span>
+                                        {isSystemTag && <span className="text-[9px] text-gray-400 bg-gray-100 px-1 rounded">系統保留</span>}
+                                    </div>
+                                    <div className="flex gap-1">
+                                        <button onClick={() => handleOpenEditCat(cat)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-indigo-500 transition-colors">
+                                            <Icon name="Edit2" className="w-3.5 h-3.5"/>
+                                        </button>
+                                        {!isSystemTag && (
+                                            <button onClick={() => onDeleteCategory(cat.firestoreId)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-red-500 transition-colors">
+                                                <Icon name="Trash2" className="w-3.5 h-3.5"/>
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="flex gap-1">
-                                    <button onClick={() => handleOpenEditCat(cat)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-indigo-500 transition-colors">
-                                        <Icon name="Edit2" className="w-3.5 h-3.5"/>
-                                    </button>
-                                    <button onClick={() => onDeleteCategory(cat.firestoreId)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-red-500 transition-colors">
-                                        <Icon name="Trash2" className="w-3.5 h-3.5"/>
-                                    </button>
-                                </div>
-                            </div>
-                        )) : (
+                            );
+                        }) : (
                             <div className="p-4 text-center text-xs text-gray-400">尚無{title}設定</div>
                         )}
                     </div>
@@ -236,7 +239,6 @@ export const ProfileView = ({
   return (
     <div className="animate-fadeIn space-y-6">
       <Card className="text-center">
-        {/* User Info & Stats ... */}
         <h2 className="font-black text-xl text-slate-800 break-all mb-2">{currentUser.username || currentUser.uid}</h2>
         {myRoleBadges.length > 0 && (
           <div className="flex items-center justify-center gap-2 flex-wrap mb-3">
@@ -277,7 +279,6 @@ export const ProfileView = ({
         {!isHistoryMode && <Button variant="danger" onClick={onLogout} className="w-full bg-white border border-red-100" icon="LogOut">登出</Button>}
       </Card>
 
-      {/* Submission List */}
       {(!isAdmin || isHistoryMode) && mySubs.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center gap-2"><h3 className="font-bold text-slate-700 text-sm ml-1">提交紀錄</h3><button onClick={() => setHistorySort(prev => prev === 'desc' ? 'asc' : 'desc')} className="p-1 rounded-lg hover:bg-slate-200 text-slate-400 transition-colors"><Icon name={historySort === 'desc' ? "ArrowDown" : "ArrowUp"} className="w-3 h-3" /></button></div>
@@ -294,11 +295,11 @@ export const ProfileView = ({
         </div>
       )}
 
-      {isAdmin && <AdminConsole pendingSubs={pendingSubs} processedSubs={processedSubs} tasks={tasks} onReview={onReview} showHistory={showHistory} toggleHistory={() => setShowHistory(!showHistory)} isHistoryMode={isHistoryMode} />}
+      {/* 傳遞 users 給 AdminConsole */}
+      {isAdmin && <AdminConsole pendingSubs={pendingSubs} processedSubs={processedSubs} tasks={tasks} onReview={onReview} showHistory={showHistory} toggleHistory={() => setShowHistory(!showHistory)} isHistoryMode={isHistoryMode} users={users} />}
      
       {isAdmin && !isHistoryMode && (
           <div className="mt-6 space-y-6">
-              {/* Roles */}
               <div>
                   <div className="flex justify-between items-center mb-2 px-1">
                       <h3 className="font-bold text-slate-700 text-sm">身分組設定 (加成系統)</h3>
@@ -319,13 +320,12 @@ export const ProfileView = ({
                   </Card>
               </div>
 
-              {/* Categories */}
               <div>
                   <div className="flex justify-between items-center mb-2 px-1">
                       <h3 className="font-bold text-slate-700 text-sm">分類標籤管理</h3>
                       {onRestoreDefaultCategories && (
                         <button 
-                            onClick={() => window.confirm("確定要匯入預設分類標籤？\n這將會補齊缺少的預設分類，並嘗試修復舊資料的連結。") && onRestoreDefaultCategories()}
+                            onClick={() => window.confirm("確定要匯入預設分類標籤？\n這將會補齊缺少的預設分類，並修復現有分類的系統標籤(System Tag)連結。\n請在修改過標籤名稱後執行此操作以確保任務分組正確。") && onRestoreDefaultCategories()}
                             className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded hover:bg-gray-200"
                         >
                             匯入預設
@@ -334,11 +334,29 @@ export const ProfileView = ({
                   </div>
                   <CategorySection title="任務分類" type="task" cats={(categories || []).filter(c => c.type !== 'announcement')} />
                   <CategorySection title="公告分類" type="announcement" cats={(categories || []).filter(c => c.type === 'announcement')} />
+              
+                  {onFixSubmissionLinks && (
+                      <div className="mt-4 pt-4 border-t border-slate-200">
+                          <button 
+                              onClick={() => {
+                                  if(window.confirm("確定要執行修復？\n這會掃描所有提交紀錄，若發現沒有 ID 的舊紀錄，會嘗試用該紀錄的 uid (username) 與現有使用者配對並補上 ID。\n\n請確保要修復的使用者已將暱稱改回當初提交時的名稱！")) {
+                                      onFixSubmissionLinks();
+                                  }
+                              }}
+                              className="w-full bg-slate-200 text-slate-600 text-xs py-2 rounded-lg hover:bg-slate-300 transition-colors flex items-center justify-center gap-2"
+                          >
+                              <Icon name="RefreshCw" className="w-3 h-3" />
+                              修復提交紀錄連結 (綁定 ID)
+                          </button>
+                          <p className="text-[10px] text-gray-400 mt-1 px-1">
+                              * 若使用者改名後紀錄消失，請先讓他改回舊名，執行此修復後，再改新名。
+                          </p>
+                      </div>
+                  )}
               </div>
           </div>
       )}
 
-      {/* Role Modal */}
       <Modal isOpen={roleModal.isOpen} onClose={() => setRoleModal({ ...roleModal, isOpen: false })} title={roleModal.id ? "編輯身分組" : "新增身分組"}>
           <div className="space-y-4">
               <div><label className="text-xs font-bold text-gray-500">代號 (唯一 ID)</label><input className="w-full p-2 border rounded mt-1 text-sm" placeholder="如: vip, mod" value={roleModal.code} onChange={e => setRoleModal({...roleModal, code: e.target.value})} disabled={!!roleModal.id} /></div>
@@ -353,7 +371,6 @@ export const ProfileView = ({
           </div>
       </Modal>
 
-      {/* Category Modal */}
       <Modal isOpen={catModal.isOpen} onClose={() => setCatModal({ ...catModal, isOpen: false })} title={catModal.id ? "編輯分類" : "新增分類"}>
           <div className="space-y-4">
               <div><label className="text-xs font-bold text-gray-500">分類名稱</label><input className="w-full p-2 border rounded mt-1 text-sm" value={catModal.label} onChange={e => setCatModal({...catModal, label: e.target.value})} /><p className="text-[10px] text-gray-400 mt-1">顯示於標籤上的名稱。</p></div>
@@ -369,6 +386,7 @@ export const ProfileView = ({
                   <div className="flex flex-wrap gap-2 mb-2">{presetColors.map(color => <button key={color} type="button" onClick={() => setCatModal({...catModal, color})} className={`w-6 h-6 rounded-full border-2 ${catModal.color === color ? 'border-gray-600 scale-110' : 'border-transparent'}`} style={{ backgroundColor: color }} />)}</div>
                   <div className="flex items-center gap-2"><input type="color" className="w-10 h-10 p-1 border rounded cursor-pointer shrink-0" value={catModal.color} onChange={e => setCatModal({...catModal, color: e.target.value})} /><input type="text" className="w-full p-2 border rounded text-sm uppercase" value={catModal.color} onChange={e => setCatModal({...catModal, color: e.target.value})} /></div>
               </div>
+              {catModal.systemTag && <div className="text-[10px] text-indigo-500 bg-indigo-50 p-2 rounded">此為系統保留標籤 ({catModal.systemTag})，若修改名稱，關聯的任務依然會留在原系統區塊。</div>}
               <Button onClick={handleSaveCat} className="w-full">儲存</Button>
           </div>
       </Modal>

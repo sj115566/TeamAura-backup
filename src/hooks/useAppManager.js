@@ -127,7 +127,9 @@ export const useAppManager = () => {
        const reportUsers = users.filter(u => !u.isAdmin);
        const subMap = new Map();
        allSubmissions.forEach(s => {
-           subMap.set(`${s.uid}_${s.taskId}`, Number(s.points) || 0);
+           // 優先使用 docId 建立 key，若無則用 uid (username)
+           const userKey = s.userDocId || s.uid;
+           subMap.set(`${userKey}_${s.taskId}`, Number(s.points) || 0);
        });
 
        const sortedTasks = [...tasks].sort((a, b) => {
@@ -142,7 +144,11 @@ export const useAppManager = () => {
            const multiplier = getMultiplier(u.roles);
            let total = 0;
            const taskCols = sortedTasks.map(t => {
-               const rawPts = subMap.get(`${u.uid}_${t.id}`) || 0;
+               // 嘗試用 ID 找，找不到用 Username 找 (後者是舊資料兼容)
+               let rawPts = subMap.get(`${u.firestoreId}_${t.id}`);
+               if (rawPts === undefined) rawPts = subMap.get(`${u.username}_${t.id}`);
+               rawPts = rawPts || 0;
+               
                const weightedPts = Math.round(rawPts * multiplier);
                total += weightedPts;
                return rawPts;
@@ -251,6 +257,9 @@ export const useAppManager = () => {
    deleteCategory: adminActions.deleteCategory,
    
    restoreDefaultCategories: adminActions.restoreDefaultCategories,
+   
+   // 新增：修復連結功能
+   fixSubmissionLinks: adminActions.fixSubmissionLinks,
 
    hardResetSystem: () => {
        setDialog({
@@ -267,28 +276,19 @@ export const useAppManager = () => {
    initializeSystem: adminActions.initializeSystem
  };
 
- // ▼▼▼ 修正：任務列表預設展開邏輯 ▼▼▼
  useEffect(() => {
-   // 只有在任務已載入，且尚未有任何展開設定時執行
    if (tasks.length > 0 && Object.keys(expandedWeeks).length === 0) {
        const updates = {};
-       
-       // 1. 預設展開「常駐與公告」區塊
        updates['pinned-main'] = true;
-
-       // 2. 找出最大週次 (最新的一週)
        const weeks = tasks.map(t => parseInt(t.week)).filter(n => !isNaN(n));
        if (weeks.length > 0) {
            const maxWeek = Math.max(...weeks);
-           // 預設展開「每日挑戰」與「賽季進度」的最新一週
            updates[`daily-${maxWeek}`] = true;
            updates[`weekly-${maxWeek}`] = true;
        }
-       
        setExpandedWeeks(updates);
    }
- }, [tasks]); // 依賴 tasks，當資料載入後執行
- // ▲▲▲ 修正結束 ▲▲▲
+ }, [tasks]);
 
  const sortedUsers = useMemo(() => {
    return [...users].filter(u => !u.isAdmin).sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0));

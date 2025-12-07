@@ -23,16 +23,14 @@ export const TaskListView = ({
 }) => {
   const [sortOrder, setSortOrder] = useState('desc');
   const [filterStatus, setFilterStatus] = useState('incomplete'); 
-  const [filterCategory, setFilterCategory] = useState('all'); // 這裡存的是 firestoreId 或 'all'
+  const [filterCategory, setFilterCategory] = useState('all'); 
 
-  // 1. 建立 ID 查找表
   const categoryMap = useMemo(() => {
       const map = {};
       if (categories) categories.forEach(c => map[c.firestoreId] = c);
       return map;
   }, [categories]);
 
-  // 2. 獲取任務分類資訊
   const getTaskCategoryInfo = (task) => {
       if (task.categoryId && categoryMap[task.categoryId]) {
           return { ...categoryMap[task.categoryId], found: true };
@@ -74,22 +72,21 @@ export const TaskListView = ({
 
   const { pinnedList, dailyGroup, weeklyGroup } = useMemo(() => {
     let filteredTasks = tasks.filter(t => {
-        // --- 篩選邏輯更新 ---
         if (filterCategory !== 'all') {
-            // 1. 優先比對 ID
             if (t.categoryId === filterCategory) {
-                // pass
             } 
-            // 2. 相容舊資料：如果任務沒 ID，但有名稱，且該名稱等於我們選中 ID 的名稱
             else if (!t.categoryId && categoryMap[filterCategory] && t.category === categoryMap[filterCategory].label) {
-                // pass (Legacy Match)
             }
             else {
                 return false;
             }
         }
         
-        const mySub = submissions.find(s => s.taskId === t.id && s.uid === currentUser.uid);
+        const mySub = submissions.find(s => 
+            s.taskId === t.id && 
+            (s.userDocId ? s.userDocId === currentUser.firestoreId : s.uid === (currentUser.username || currentUser.uid))
+        );
+
         const status = mySub ? mySub.status : null;
         const isDone = status === 'pending' || status === 'approved';
 
@@ -105,9 +102,19 @@ export const TaskListView = ({
 
     filteredTasks.forEach(task => {
         const catInfo = getTaskCategoryInfo(task);
-        if (catInfo.label === '常駐') pList.push(task);
-        else if (catInfo.label === '每日') dList.push(task);
+        
+        // ▼▼▼ 修正：優先使用 systemTag 判斷分組 ▼▼▼
+        const isSystemPinned = catInfo.systemTag === 'pinned';
+        const isSystemDaily = catInfo.systemTag === 'daily';
+        
+        // Fallback: 如果沒有 systemTag，才用 label 判斷 (相容舊資料)
+        const isLegacyPinned = !catInfo.systemTag && catInfo.label === '常駐';
+        const isLegacyDaily = !catInfo.systemTag && catInfo.label === '每日';
+
+        if (isSystemPinned || isLegacyPinned) pList.push(task);
+        else if (isSystemDaily || isLegacyDaily) dList.push(task);
         else wList.push(task);
+        // ▲▲▲ 修正結束 ▲▲▲
     });
 
     pList.sort((a, b) => {
@@ -123,7 +130,6 @@ export const TaskListView = ({
 
   }, [tasks, sortOrder, filterStatus, filterCategory, submissions, currentUser, categoryMap]);
 
-  // 取得可用的篩選選項 (物件陣列)
   const filterOptions = useMemo(() => {
       if (!categories) return [];
       return categories.filter(c => c.type === 'task');
@@ -140,7 +146,11 @@ export const TaskListView = ({
   };
 
   const TaskCard = ({ task }) => {
-    const mySub = submissions.find(s => s.taskId === task.id && s.uid === currentUser.uid);
+    const mySub = submissions.find(s => 
+        s.taskId === task.id && 
+        (s.userDocId ? s.userDocId === currentUser.firestoreId : s.uid === (currentUser.username || currentUser.uid))
+    );
+    
     const status = mySub ? mySub.status : null;
     const isDone = status === 'pending' || status === 'approved';
     const catInfo = getTaskCategoryInfo(task);
@@ -152,7 +162,7 @@ export const TaskListView = ({
             <div className="text-xl w-10 h-10 bg-white rounded-full flex items-center justify-center flex-shrink-0 shadow-sm border border-gray-100 group-hover:scale-110 transition-transform">{task.icon}</div>
             <div className="space-y-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                    {task.isPinned && <Icon name="Map" className="w-3 h-3 text-indigo-500" />}
+                    {task.isPinned && <Icon name="Pin" className="w-3 h-3 text-indigo-500" />}
                     <span className="text-[10px] px-1.5 py-0.5 rounded font-bold" style={badgeStyle}>{catInfo.label}</span>
                     <div className="font-bold text-sm text-slate-800">{task.title}</div>
                 </div>
@@ -191,7 +201,6 @@ export const TaskListView = ({
 
   return (
     <div className="space-y-4 animate-fadeIn">
-      {/* 頂部控制列 */}
       <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -202,14 +211,12 @@ export const TaskListView = ({
           </div>
 
           <div className="flex flex-col gap-3">
-              {/* 1. 狀態篩選 Segmented Control */}
               <div className="bg-slate-200 p-1 rounded-lg flex text-xs font-bold text-slate-500 w-full">
                   <button onClick={() => setFilterStatus('incomplete')} className={`flex-1 py-1.5 rounded-md transition-all whitespace-nowrap ${filterStatus === 'incomplete' ? 'bg-white text-indigo-600 shadow-sm' : 'hover:text-slate-700'}`}>未完成</button>
                   <button onClick={() => setFilterStatus('complete')} className={`flex-1 py-1.5 rounded-md transition-all whitespace-nowrap ${filterStatus === 'complete' ? 'bg-white text-indigo-600 shadow-sm' : 'hover:text-slate-700'}`}>已完成</button>
                   <button onClick={() => setFilterStatus('all')} className={`flex-1 py-1.5 rounded-md transition-all whitespace-nowrap ${filterStatus === 'all' ? 'bg-white text-indigo-600 shadow-sm' : 'hover:text-slate-700'}`}>全部</button>
               </div>
               
-              {/* 2. 分類篩選 Tag Cloud */}
               <div className="flex flex-wrap gap-2 items-center">
                   <button 
                     onClick={() => setFilterCategory('all')}
@@ -250,8 +257,8 @@ export const TaskListView = ({
           );
       })()}
 
-      {dailyGroup.length > 0 && <TaskGroupSection title="每日挑戰" icon="Calendar" colorClass="text-orange-500" groupData={dailyGroup} prefix="daily" />}
       {weeklyGroup.length > 0 && <TaskGroupSection title="賽季進度" icon="Trophy" colorClass="text-slate-500" groupData={weeklyGroup} prefix="weekly" />}
+      {dailyGroup.length > 0 && <TaskGroupSection title="每日挑戰" icon="Calendar" colorClass="text-orange-500" groupData={dailyGroup} prefix="daily" />}
 
       {(pinnedList.length === 0 && dailyGroup.length === 0 && weeklyGroup.length === 0) && (<div className="text-center py-12 text-gray-400 bg-white rounded-xl border border-dashed border-gray-200"><Icon name="Check" className="w-12 h-12 mx-auto mb-2 opacity-20" /><p className="text-sm font-bold">沒有符合條件的任務</p><p className="text-xs mt-1">太棒了！或者試試切換篩選器？</p></div>)}
     </div>

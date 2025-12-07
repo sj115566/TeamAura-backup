@@ -20,12 +20,13 @@ import { AnnouncementView } from './views/AnnouncementView';
 const EMOJI_LIST = ['🐾', '📅', '⚔️', '✨', '🥚', '🎁', '🔥', '💧', '⚡', '🍃', '❄️', '🥊', '👻', '🟣', '🟤', '🧚', '🐉', '🏔️', '🦅', '🤝', '🚶', '📸', '📍', '🍬', '⭐', '🏆'];
 
 const TASK_TYPES = {
-    PINNED: { label: '常駐/公告', defaultCategoryLabel: '常駐', defaultIcon: '📌', defaultWeek: 'Pinned', isPinned: true },
+    // PINNED 的預設 isPinned 改為 false，讓使用者自己決定是否要勾選置頂
+    PINNED: { label: '常駐/公告', defaultCategoryLabel: '常駐', defaultIcon: '📌', defaultWeek: 'Pinned', isPinned: false },
     DAILY: { label: '每日挑戰', defaultCategoryLabel: '每日', defaultIcon: '📅', defaultWeek: '1', isPinned: false },
     SEASONAL: { label: '賽季進度', defaultCategoryLabel: '一般', defaultIcon: '🏆', defaultWeek: '1', isPinned: false }
 };
 
-// ▼▼▼ 新增：可視化標籤選擇器元件 ▼▼▼
+// 可視化標籤選擇器元件
 const CategorySelector = ({ options, selectedId, onSelect }) => {
     return (
         <div className="flex flex-wrap gap-2 p-2 bg-slate-50 border rounded-lg max-h-32 overflow-y-auto">
@@ -47,7 +48,6 @@ const CategorySelector = ({ options, selectedId, onSelect }) => {
         </div>
     );
 };
-// ▲▲▲ 新增結束 ▲▲▲
 
 const AppContent = () => {
  const { state, actions, sortedUsers, dialog, setDialog } = useAppManager();
@@ -87,7 +87,7 @@ const AppContent = () => {
  useEffect(() => {
      if (taskModal.isOpen) {
          const { category, isPinned } = taskModal.data;
-         if (category === '常駐' || isPinned) setCurrentTaskType('PINNED');
+         if (category === '常駐' || (isPinned && category !== '每日' && category !== '一般')) setCurrentTaskType('PINNED'); 
          else if (category === '每日') setCurrentTaskType('DAILY');
          else setCurrentTaskType('SEASONAL');
      }
@@ -202,7 +202,7 @@ const AppContent = () => {
        {activeTab === 'tasks' && <TaskListView tasks={tasks} submissions={submissions} currentUser={currentUser} isAdmin={currentUser.isAdmin} expandedWeeks={expandedWeeks} onToggleWeek={actions.toggleWeek} onDeleteTask={actions.deleteTask} onOpenWithdraw={actions.withdraw} isHistoryMode={isHistoryMode} onOpenSubmit={(t) => setSubmitModal({ isOpen: true, task: t, proof: '', images: [], rawFiles: [] })} onOpenEditTask={() => setTaskModal({ isOpen: true, id: null, firestoreId: null, data: { title: '', points: 10, icon: '🐾', description: '', week: '1', type: 'fixed', category: '一般', categoryId: null, isPinned: false } })} onEditTask={handleOpenEditTask} onDuplicateTask={handleDuplicateTask} onBatchSetExpanded={actions.batchSetExpanded} categories={categories} />}
        {activeTab === 'leaderboard' && <LeaderboardView users={sortedUsers} currentUser={currentUser} seasonGoal={seasonGoal} seasonGoalTitle={seasonGoalTitle} onUpdateGoal={actions.updateSeasonGoal} roles={roles} onEditUserRole={(uid, currentRoles) => setUserRoleModal({ isOpen: true, uid, roles: currentRoles || [] })} />}
        {activeTab === 'report' && currentUser.isAdmin && <ReportView tasks={tasks} users={users} submissions={submissions} onArchiveSeason={() => setArchiveModal({ isOpen: true, newSeasonName: '' })} isHistoryMode={isHistoryMode} onExport={actions.exportReport} roles={roles} />}
-       {activeTab === 'profile' && <ProfileView currentUser={currentUser} tasks={tasks} submissions={submissions} isAdmin={currentUser.isAdmin} isHistoryMode={isHistoryMode} onLogout={actions.logout} onReview={actions.review} onInitialize={actions.initializeSystem} onHardReset={actions.hardResetSystem} roles={roles} onAddRole={actions.addRole} onUpdateRole={actions.updateRole} onDeleteRole={actions.deleteRole} categories={categories} onAddCategory={actions.addCategory} onUpdateCategory={actions.updateCategory} onDeleteCategory={actions.deleteCategory} onRestoreDefaultCategories={actions.restoreDefaultCategories} />}
+       {activeTab === 'profile' && <ProfileView currentUser={currentUser} tasks={tasks} submissions={submissions} isAdmin={currentUser.isAdmin} isHistoryMode={isHistoryMode} onLogout={actions.logout} onReview={actions.review} onInitialize={actions.initializeSystem} onHardReset={actions.hardResetSystem} roles={roles} onAddRole={actions.addRole} onUpdateRole={actions.updateRole} onDeleteRole={actions.deleteRole} categories={categories} onAddCategory={actions.addCategory} onUpdateCategory={actions.updateCategory} onDeleteCategory={actions.deleteCategory} onRestoreDefaultCategories={actions.restoreDefaultCategories} onFixSubmissionLinks={actions.fixSubmissionLinks} users={users} />}
        {activeTab === 'game' && <GameView games={games} isAdmin={currentUser.isAdmin} onOpenAdd={() => setGameModal({ isOpen: true, id: null, title: '', url: '', icon: '' })} onOpenEdit={(g) => setGameModal({ isOpen: true, id: g.id, title: g.title, url: g.url, icon: g.icon })} onDelete={actions.deleteGame} />}
      </div>
 
@@ -226,21 +226,26 @@ const AppContent = () => {
 
             {currentTaskType === 'SEASONAL' && (
                 <div>
-                    <label className="text-xs font-bold text-gray-500 mb-1 block">分類與屬性</label>
-                    <div className="flex flex-col gap-2">
-                        {/* ▼▼▼ 使用 CategorySelector ▼▼▼ */}
-                        <CategorySelector 
-                            options={availableTaskCats}
-                            selectedId={taskModal.data.categoryId}
-                            onSelect={(cat) => setTaskModal(prev => ({ 
-                                ...prev, 
-                                data: { ...prev.data, category: cat.label, categoryId: cat.firestoreId, categoryColor: cat.color } 
-                            }))}
-                        />
-                        <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 select-none w-full sm:w-auto mt-2"><input type="checkbox" checked={taskModal.data.isPinned || false} onChange={e => setTaskModal({ ...taskModal, data: { ...taskModal.data, isPinned: e.target.checked } })} className="w-4 h-4 accent-indigo-600" /><span className="text-sm font-bold text-slate-700">置頂</span></label>
-                    </div>
+                    <label className="text-xs font-bold text-gray-500 mb-1 block">分類標籤</label>
+                    {/* 修改：在 SEASONAL 模式下，過濾掉 '每日' 和 '常駐' 的選項 */}
+                    <CategorySelector 
+                        options={availableTaskCats.filter(c => c.label !== '每日' && c.label !== '常駐')}
+                        selectedId={taskModal.data.categoryId}
+                        onSelect={(cat) => setTaskModal(prev => ({ 
+                            ...prev, 
+                            data: { ...prev.data, category: cat.label, categoryId: cat.firestoreId, categoryColor: cat.color } 
+                        }))}
+                    />
                 </div>
             )}
+
+            {/* 修改：移除條件限制，讓所有任務類型 (包括 PINNED) 都可以看到置頂選項 */}
+             <div className="mt-2">
+                <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 select-none w-full sm:w-auto">
+                    <input type="checkbox" checked={taskModal.data.isPinned || false} onChange={e => setTaskModal({ ...taskModal, data: { ...taskModal.data, isPinned: e.target.checked } })} className="w-4 h-4 accent-indigo-600" />
+                    <span className="text-sm font-bold text-slate-700">置頂 (顯示於該區塊最上方)</span>
+                </label>
+             </div>
             
             <div className="relative"><label className="text-xs font-bold text-gray-500 mb-1 block">圖示 (Emoji)</label><div className="flex gap-2"><input className="flex-1 p-2 border rounded-lg text-center text-xl" placeholder="🐾" value={taskModal.data.icon} onChange={e => setTaskModal({ ...taskModal, data: { ...taskModal.data, icon: e.target.value } })} /><button type="button" onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(!showEmojiPicker); }} className="bg-gray-100 p-2 rounded-lg hover:bg-gray-200 transition-colors"><Icon name="Smile" className="w-5 h-5 text-gray-600" /></button></div>{showEmojiPicker && (<div className="absolute right-0 bottom-full mb-2 bg-white border border-gray-200 rounded-lg shadow-xl p-2 z-50 w-64 grid grid-cols-6 gap-1 max-h-48 overflow-y-auto" onClick={(e) => e.stopPropagation()}>{EMOJI_LIST.map(emoji => (<button key={emoji} type="button" onClick={() => { setTaskModal({ ...taskModal, data: { ...taskModal.data, icon: emoji } }); setShowEmojiPicker(false); }} className="text-xl p-1 hover:bg-indigo-50 rounded">{emoji}</button>))}</div>)}</div>
             <div><label className="text-xs font-bold text-gray-500 mb-1 block">任務描述</label><textarea className="w-full p-2 border rounded-lg h-24 resize-none text-sm" placeholder="請輸入詳細說明..." value={taskModal.data.description} onChange={e => setTaskModal({ ...taskModal, data: { ...taskModal.data, description: e.target.value } })} /></div>
@@ -248,6 +253,59 @@ const AppContent = () => {
          </div>
        </div>
      </Modal>
+    
+     {/* ▼▼▼ 補回遺失的 Submit Modal ▼▼▼ */}
+     <Modal isOpen={submitModal.isOpen} onClose={() => setSubmitModal({ ...submitModal, isOpen: false })} title={`回報: ${submitModal.task?.title}`}>
+       <div className="space-y-4">
+         <div className="bg-slate-50 p-3 rounded-lg flex items-center gap-3">
+            <div className="text-3xl">{submitModal.task?.icon}</div>
+            <div>
+                <div className="font-bold text-slate-700">{submitModal.task?.title}</div>
+                <div className="text-xs text-slate-500">{submitModal.task?.description}</div>
+                <div className="text-xs font-bold text-indigo-600 mt-1">{submitModal.task?.type === 'variable' ? '由管理員評分' : `完成可得 ${submitModal.task?.points} pts`}</div>
+            </div>
+         </div>
+         
+         <div>
+            <label className="text-xs font-bold text-gray-500 mb-1 block">上傳證明截圖 (可選)</label>
+            <div onClick={() => fileInputRef.current?.click()} className="w-full h-32 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-colors">
+                {submitModal.images.length > 0 ? (
+                    <div className="flex gap-2 overflow-x-auto w-full px-2 h-full items-center">
+                        {submitModal.images.map((img, i) => (
+                            <img key={i} src={img} className="h-24 w-auto rounded shadow-sm object-cover" />
+                        ))}
+                    </div>
+                ) : (
+                    <>
+                        <Icon name="Camera" className="w-8 h-8 text-gray-400 mb-2" />
+                        <span className="text-xs text-gray-400">點擊上傳圖片</span>
+                    </>
+                )}
+                <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    className="hidden" 
+                    accept="image/*" 
+                    multiple 
+                    onChange={handleImageUpload} 
+                />
+            </div>
+         </div>
+
+         <div>
+            <label className="text-xs font-bold text-gray-500 mb-1 block">備註說明 (可選)</label>
+            <textarea 
+                className="w-full p-3 border rounded-xl text-sm h-20 resize-none focus:border-indigo-500 outline-none" 
+                placeholder="有什麼想補充的嗎？"
+                value={submitModal.proof}
+                onChange={e => setSubmitModal({ ...submitModal, proof: e.target.value })}
+            />
+         </div>
+
+         <Button onClick={handleSubmitTask} className="w-full py-3">提交回報</Button>
+       </div>
+     </Modal>
+     {/* ▲▲▲ 結束補回 ▲▲▲ */}
 
      {/* Announcement Modal - Visual Selector */}
      <Modal isOpen={announceModal.isOpen} onClose={() => setAnnounceModal({ ...announceModal, isOpen: false })} title={announceModal.id ? "編輯公告" : "發佈公告"}>
