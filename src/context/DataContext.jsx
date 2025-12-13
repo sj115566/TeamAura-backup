@@ -72,7 +72,8 @@ export const DataProvider = ({ children }) => {
    const {
        seasonName, users, roles, tasks, submissions, announcements, games, categories,
        selectedSeason, currentSeason, availableSeasons, isHistoryMode,
-       dataLoading, setSelectedSeason
+       dataLoading, setSelectedSeason,
+       lotteryTarget // 🔥 接收抽獎目標分數
    } = dataState;
 
 
@@ -272,6 +273,8 @@ export const DataProvider = ({ children }) => {
            ...adminActions,
            deleteTask, deleteAnnouncement, deleteGame, withdraw, review, updateAnnouncement, updateGame,
            refreshApp, exportReport, setSeason,
+            // 🔥 確保 updateSeasonTarget 被包含
+            updateSeasonTarget: adminActions.updateSeasonTarget,
            hardResetSystem: adminActions.hardResetSystem,
            restoreDefaultCategories: adminActions.restoreDefaultCategories,
            fixSubmissionLinks: adminActions.fixSubmissionLinks,
@@ -280,7 +283,8 @@ export const DataProvider = ({ children }) => {
        needRefresh,
        currentMultiplier, getMultiplier,
        notifications, clearNotification,
-       theme, toggleTheme // 匯出主題控制
+       theme, toggleTheme, // 匯出主題控制
+       lotteryTarget // 🔥 傳遞給前端
    };
 
 

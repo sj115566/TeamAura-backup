@@ -16,24 +16,20 @@ export const useData = (currentUser, updateCurrentUser) => {
  const [selectedSeason, setSelectedSeason] = useState(null);
  const [seasonGoal, setSeasonGoal] = useState(1000);
  const [seasonGoalTitle, setSeasonGoalTitle] = useState("Season Goal");
+ const [lotteryTarget, setLotteryTarget] = useState(0);
 
- // 新增：暫存完整的系統設定，以便切換賽季時讀取歷史目標
- const [systemConfig, setSystemConfig] = useState(null);
-
+ // 移除 systemConfig 暫存，直接改用 seasons 集合讀取
  const [dataLoading, setDataLoading] = useState(true);
 
  const isHistoryMode = useMemo(() => {
    return selectedSeason && selectedSeason !== currentSeason && currentSeason !== '載入中...';
  }, [selectedSeason, currentSeason]);
 
- // 1. 監聽系統設定 (Config)
+ // 1. 監聽系統設定 (System Config)
  useEffect(() => {
-   if (!currentUser) return;
    const unsubSettings = onSnapshot(doc(db, "system", "config"), (docSnap) => {
        if (docSnap.exists()) {
            const data = docSnap.data();
-           setSystemConfig(data); // 儲存完整設定
-
            const curr = data.currentSeason || "第一賽季";
            setCurrentSeason(curr);
            
@@ -41,40 +37,43 @@ export const useData = (currentUser, updateCurrentUser) => {
            const all = Array.from(new Set([...past, curr]));
            setAvailableSeasons(all);
            
+           // 如果還沒選賽季，預設選當前賽季
            setSelectedSeason(prev => {
                if (!prev || !all.includes(prev)) return curr;
                return prev;
            });
        } else {
+           // Fallback default
            setCurrentSeason("第一賽季");
            setAvailableSeasons(["第一賽季"]);
            setSelectedSeason("第一賽季");
-           setSystemConfig(null);
        }
    });
    return () => unsubSettings();
- }, [currentUser]);
+ }, [currentUser]); 
 
- // 2. 根據 selectedSeason 更新顯示的目標與標題
+ // 2. 🔥 新增：監聽選中的賽季文件 (讀取該賽季的目標設定)
  useEffect(() => {
-   if (!systemConfig || !selectedSeason) return;
+    if (!selectedSeason) return;
 
-   // 預設使用當前設定
-   let targetGoal = Number(systemConfig.seasonGoal) || 1000;
-   let targetTitle = systemConfig.seasonGoalTitle || "Season Goal";
+    const unsubSeason = onSnapshot(doc(db, "seasons", selectedSeason), (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            setSeasonGoal(data.seasonGoal || 10000);
+            setSeasonGoalTitle(data.seasonGoalTitle || "Season Goal");
+            setLotteryTarget(data.lotteryTarget || 0);
+        } else {
+            // 如果該賽季文件不存在，使用預設值
+            setSeasonGoal(10000);
+            setSeasonGoalTitle("Season Goal");
+            setLotteryTarget(0);
+        }
+    });
 
-   // 如果是歷史模式，且設定中有該賽季的歷史紀錄，則使用歷史紀錄
-   // 假設 history 結構為: { "第一賽季": { seasonGoal: 5000, seasonGoalTitle: "S1目標" } }
-   if (selectedSeason !== systemConfig.currentSeason && systemConfig.history && systemConfig.history[selectedSeason]) {
-       const historyData = systemConfig.history[selectedSeason];
-       if (historyData.seasonGoal) targetGoal = Number(historyData.seasonGoal);
-       if (historyData.seasonGoalTitle) targetTitle = historyData.seasonGoalTitle;
-   }
+    return () => unsubSeason();
+ }, [selectedSeason]);
 
-   setSeasonGoal(targetGoal);
-   setSeasonGoalTitle(targetTitle);
- }, [selectedSeason, systemConfig]);
-
+ // 3. 監聽主要資料 (根據 selectedSeason 篩選)
  useEffect(() => {
    if (!currentUser || !selectedSeason) return;
 
@@ -95,14 +94,20 @@ export const useData = (currentUser, updateCurrentUser) => {
        }
    };
 
-   unsubGames = onSnapshot(collection(db, "games"), (s) => {
-     setGames(s.docs.map(d => ({ ...d.data(), firestoreId: d.id })));
+   // 監聽 Games (無賽季過濾或簡單過濾)
+   const gamesQ = query(collection(db, "games"));
+   unsubGames = onSnapshot(gamesQ, (s) => {
+     const allGames = s.docs.map(d => ({ ...d.data(), firestoreId: d.id }));
+     // 前端過濾賽季
+     setGames(allGames.filter(g => !g.season || g.season === selectedSeason));
    }, (error) => console.error("Games fetch error:", error));
 
+   // 監聽 Roles
    unsubRoles = onSnapshot(collection(db, "roles"), (s) => {
        setRoles(s.docs.map(d => ({ ...d.data(), firestoreId: d.id })));
    }, (error) => console.error("Roles fetch error:", error));
 
+   // 監聽 Categories
    const catsRef = collection(db, "categories");
    unsubCats = onSnapshot(catsRef, (s) => {
        const rawCats = s.docs.map(d => ({ ...d.data(), firestoreId: d.id }));
@@ -118,15 +123,18 @@ export const useData = (currentUser, updateCurrentUser) => {
        setCategories(rawCats);
    });
 
+   // 監聽 Tasks (根目錄) -> 前端過濾賽季
    const taskQ = query(collection(db, "tasks"), orderBy("id", "desc"));
    unsubTasks = onSnapshot(taskQ, (snapshot) => {
        const allTasks = snapshot.docs.map(doc => ({ ...doc.data(), firestoreId: doc.id }));
+       // 🔥 確保 tasks 包含 isBonusOnly 欄位
        const filteredTasks = allTasks.filter(t => !t.season || t.season === selectedSeason);
        setTasks(filteredTasks);
        loadedStatus.tasks = true;
        checkLoading();
    });
 
+   // 監聽 Announcements (根目錄) -> 前端過濾賽季
    const ancQ = query(collection(db, "announcements"), orderBy("timestamp", "desc"), limit(50));
    unsubAnc = onSnapshot(ancQ, (snapshot) => {
        const allAnc = snapshot.docs.map(d => ({ ...d.data(), firestoreId: d.id }));
@@ -143,8 +151,11 @@ export const useData = (currentUser, updateCurrentUser) => {
    if (!isHistoryMode) {
        // --- 一般模式 (Live) ---
        const limitCount = currentUser?.isAdmin ? 1000 : 100;
+       // Submissions 必須過濾賽季
        const subQ = query(collection(db, "submissions"), where("season", "==", selectedSeason), orderBy("timestamp", "desc"), limit(limitCount));
-       unsubSubs = onSnapshot(subQ, (s) => { setSubmissions(s.docs.map(d => ({ ...d.data(), firestoreId: d.id }))); });
+       unsubSubs = onSnapshot(subQ, (s) => { 
+           setSubmissions(s.docs.map(d => ({ ...d.data(), firestoreId: d.id }))); 
+       });
        
        unsubUsers = onSnapshot(query(collection(db, "users")), (snapshot) => {
            const usersData = snapshot.docs.map(doc => {
@@ -179,7 +190,6 @@ export const useData = (currentUser, updateCurrentUser) => {
            allSubs.forEach(sub => { 
                if (sub.status === 'approved') {
                    const pts = Number(sub.points) || 0;
-                   // 優先用 ID 累加，若無則用 username (相容舊資料)
                    if (sub.userDocId) {
                        seasonPointsMap[sub.userDocId] = (seasonPointsMap[sub.userDocId] || 0) + pts;
                    } else if (sub.uid) {
@@ -188,19 +198,17 @@ export const useData = (currentUser, updateCurrentUser) => {
                } 
            });
 
-           // 3. 抓取使用者列表 (只需抓一次，因為歷史模式不需要即時監聽使用者資料變更)
-           // 這裡我們還是用 getDocs 來獲取當前使用者名單，然後將積分替換為計算結果
+           // 3. 抓取使用者列表
            try {
                const userSnap = await getDocs(collection(db, "users"));
                const historyUsers = userSnap.docs.map(doc => {
                    const data = doc.data();
-                   // 嘗試從 map 中取得分數 (優先 ID，備用 username)
                    const historyPoints = seasonPointsMap[doc.id] !== undefined ? seasonPointsMap[doc.id] : (seasonPointsMap[data.username] || 0);
                    
                    return { 
                        ...data, 
                        uid: data.uid || data.username, 
-                       points: historyPoints, // <--- 這裡覆蓋為歷史分數
+                       points: historyPoints, 
                        firestoreId: doc.id 
                    };
                });
@@ -218,13 +226,14 @@ export const useData = (currentUser, updateCurrentUser) => {
 
    return () => { 
        clearTimeout(safeTimer);
-       unsubTasks(); unsubSubs(); unsubAnc(); unsubUsers(); unsubGames(); unsubRoles(); unsubCats(); 
+       unsubTasks(); unsubSubs(); unsubAnc(); unsubUsers(); unsubGames(); unsubRoles(); unsubCats(); unsubGames();
    };
  }, [currentUser?.username, selectedSeason, isHistoryMode]);
 
  return {
      tasks, submissions, users, announcements, games, roles, categories,
      seasonName: currentSeason, currentSeason, selectedSeason, setSelectedSeason, availableSeasons, isHistoryMode, seasonGoal, seasonGoalTitle,
-     dataLoading
+     dataLoading,
+     lotteryTarget 
  };
 };
