@@ -66,9 +66,27 @@ export const ProfileView = () => {
 
     const toggleCategoryExpand = (type) => setCategoryExpanded(prev => ({ ...prev, [type]: !prev[type] }));
 
+    // --- 核心資料處理：包含統計與提交紀錄 (已整合 Special Pinned 邏輯) ---
     const { mySubs, pendingSubs, processedSubs, statsData, totalBasePoints } = useMemo(() => {
         if (!submissions) return { mySubs:[], pendingSubs:[], processedSubs:[], statsData: { pinned: { totalTasks:0, completed:0, earnedBase:0, totalPts:0 }, weeks: [] }, totalBasePoints: 0 };
-        const my = submissions.filter(s => s.userDocId ? s.userDocId === currentUser.firestoreId : s.uid === (currentUser.username || currentUser.uid));
+        
+        const myRaw = submissions.filter(s => s.userDocId ? s.userDocId === currentUser.firestoreId : s.uid === (currentUser.username || currentUser.uid));
+        
+        // 1. 處理 mySubs：加入 taskTitle 與 week (含 SPECIAL_PINNED 判斷)
+        const my = myRaw.map(sub => {
+            const task = tasks.find(t => t.id === sub.taskId);
+            let weekGroup = task ? task.week : '?';
+            // 判斷是否為常駐/公告任務
+            if (task && (task.isPinned || weekGroup === 'Pinned')) {
+                weekGroup = 'SPECIAL_PINNED';
+            }
+            return {
+                ...sub,
+                taskTitle: task ? task.title : sub.taskId,
+                week: weekGroup,
+            };
+        }).sort((a, b) => b.timestamp - a.timestamp);
+
         const pending = isAdmin ? submissions.filter(s => s.status === 'pending') : [];
         const processed = isAdmin ? submissions.filter(s => s.status !== 'pending') : [];
         
@@ -91,6 +109,7 @@ export const ProfileView = () => {
             });
             my.forEach(s => {
                 if (s.status === 'approved') {
+                    // 注意：這裡使用原始任務資料來計算統計，不需 SPECIAL_PINNED 邏輯
                     const task = tasks.find(t => t.id === s.taskId);
                     if (task) {
                         const base = Number(s.points) || 0;
@@ -122,12 +141,21 @@ export const ProfileView = () => {
         return roles.filter(r => currentUser.roles.includes(r.code));
     }, [currentUser, roles]);
 
+    // --- 週次排序邏輯 (整合 Special Pinned 置頂) ---
     const sortedHistoryWeeks = useMemo(() => {
-        return [...new Set(mySubs.map(s => s.week))].sort((a,b) => {
+        const weeks = [...new Set(mySubs.map(s => s.week))];
+        
+        const hasPinned = weeks.includes('SPECIAL_PINNED');
+        const regularWeeks = weeks.filter(w => w !== 'SPECIAL_PINNED');
+
+        regularWeeks.sort((a,b) => {
             const na = parseInt(a), nb = parseInt(b);
             const compare = (!isNaN(na) && !isNaN(nb)) ? na - nb : a.localeCompare(b);
             return historySort === 'asc' ? compare : -compare;
         });
+        
+        // 將常駐任務區塊永遠放在最上面
+        return hasPinned ? ['SPECIAL_PINNED', ...regularWeeks] : regularWeeks;
     }, [mySubs, historySort]);
 
     const StatProgress = ({ title, data, colorClass, barColorClass }) => {
@@ -184,10 +212,29 @@ export const ProfileView = () => {
                   <div className="flex items-center gap-2"><h3 className="font-bold text-slate-700 text-sm ml-1 dark:text-slate-200">提交紀錄</h3><button onClick={() => setHistorySort(prev => prev === 'desc' ? 'asc' : 'desc')} className="p-1 rounded-lg hover:bg-slate-200 text-slate-400 transition-colors dark:hover:bg-slate-800"><Icon name={historySort === 'desc' ? "ArrowDown" : "ArrowUp"} className="w-3 h-3" /></button></div>
                   {sortedHistoryWeeks.map(week => (
                     <Card key={week} noPadding>
-                      <div className="bg-gray-50 px-4 py-2 text-xs font-bold text-gray-500 border-b border-gray-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400">第 {week} 週</div>
+                      <div className="bg-gray-50 px-4 py-2 text-xs font-bold text-gray-500 border-b border-gray-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400">
+                          {week === 'SPECIAL_PINNED' ? '常駐與公告任務' : `第 ${week} 週`}
+                      </div>
                       <div className="divide-y divide-gray-50 dark:divide-slate-800">
                         {mySubs.filter(s => s.week === week).map(sub => (
-                            <div key={sub.id} className="p-3 flex justify-between items-center text-sm"><span className="font-medium text-slate-700 dark:text-slate-300">{sub.taskTitle}</span><div className="flex items-center gap-2">{sub.status === 'approved' && <div className="text-xs"><span className="font-bold text-slate-900 dark:text-white">{Number(sub.points) || 0} <span className="text-[10px] font-normal">Pts</span></span></div>}<Badge color={sub.status === 'approved' ? 'green' : sub.status === 'rejected' ? 'red' : 'yellow'}>{sub.status === 'approved' ? '完成' : sub.status === 'rejected' ? '退回' : '審核中'}</Badge></div></div>
+                            <div key={sub.id} className="p-3 flex justify-between items-center text-sm">
+                                <span className="font-medium text-slate-700 dark:text-slate-300">{sub.taskTitle}</span>
+                                <div className="flex items-center gap-2">
+                                    {sub.status === 'approved' && (
+                                        <div className="text-xs">
+                                            <span className="font-bold text-slate-900 dark:text-white">{Number(sub.points) || 0} <span className="text-[10px] font-normal">Pts</span></span>
+                                        </div>
+                                    )}
+                                    <Badge className={
+                                        sub.status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' : 
+                                        sub.status === 'rejected' ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300' : 
+                                        sub.status === 'withdrawn' ? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400' : 
+                                        'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300'
+                                    }>
+                                        {sub.status === 'approved' ? '完成' : sub.status === 'rejected' ? '退回' : sub.status === 'withdrawn' ? '已撤回' : '審核中'}
+                                    </Badge>
+                                </div>
+                            </div>
                         ))}
                       </div>
                     </Card>
