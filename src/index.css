@@ -6,35 +6,165 @@
 /* 引入 Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
 
-/* 全域設定 */
-body {
-  font-family: 'Noto Sans TC', sans-serif;
-  -webkit-tap-highlight-color: transparent;
-  overscroll-behavior-y: none;
-  user-select: none;
-  background-color: #f8fafc;
-  color: #1e293b;
-  transition: background-color 0.3s, color 0.3s;
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%; /* 接近純黑，AAA 通過 */
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%; /* 深藍色，AAA 通過 */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    
+    /* 亮色模式修正：加深灰色文字 */
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215 25% 20%; /* 亮度從 27% 降至 20% (更黑)，確保 AAA 7:1 */
+    
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* 深色模式修正：確保背景夠深，文字夠亮 */
+    --background: 222.2 20% 15%; /* 背景亮度 15% */
+    --foreground: 210 40% 98%;   /* 文字亮度 98%，對比度極高 */
+    
+    --card: 222.2 20% 23%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 20% 23%;
+    --popover-foreground: 210 40% 98%;
+    
+    --primary: 245 100% 82%; 
+    --primary-foreground: 222.2 47.4% 11.2%;
+    
+    --secondary: 217.2 32.6% 25%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 25%;
+    
+    /* 深色模式修正：提亮灰色文字 */
+    --muted-foreground: 210 40% 95%; /* 亮度從 90% 提至 95%，確保 AAA 7:1 */
+    
+    --accent: 217.2 32.6% 25%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 25%;
+    --input: 217.2 32.6% 25%;
+    --ring: 245 100% 82%;
+  }
 }
 
-.dark body {
-  background-color: #0f172a;
-  color: #f1f5f9;
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: 'Noto Sans TC', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+    user-select: none;
+    transition: background-color 0.3s, color 0.3s;
+  }
 }
+
+/* -------------------------------------------------------- */
+/* Layout 專用的語意化組件類別 (Component Classes)           */
+/* -------------------------------------------------------- */
+@layer components {
+  /* 整個應用程式的最外層容器 */
+  .app-container {
+    @apply min-h-screen bg-slate-50 text-slate-800 pb-24 font-sans dark:bg-slate-950 dark:text-slate-100 transition-colors;
+  }
+
+  /* 頂部導覽列 (Header) */
+  .app-header {
+    @apply sticky top-0 z-40 shadow-sm border-b safe-area-top transition-colors duration-300;
+  }
+
+  /* 頂部導覽列的一般狀態 (亮/深色) */
+  .app-header-default {
+    @apply bg-white border-gray-100 dark:bg-slate-900 dark:border-slate-800;
+  }
+
+  /* 頂部導覽列的歷史模式狀態 (黃色系) */
+  .app-header-history {
+    @apply bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-900;
+  }
+
+  /* 頂部導覽列的內部容器 */
+  .app-header-inner {
+    @apply px-4 h-11 flex justify-between items-center;
+  }
+
+  /* 主要內容區域 (Main) */
+  .app-main {
+    @apply w-full mx-auto px-3 sm:px-4 py-4 space-y-6 max-w-3xl mb-10;
+  }
+
+  /* 底部導覽列 (Nav) */
+  /* 修正：text-slate-600 -> text-slate-700 (亮色 AAA) */
+  /* 修正：dark:text-slate-400 -> dark:text-slate-300 (深色 AAA) */
+  .app-nav {
+    @apply fixed bottom-0 w-full bg-white border-t border-gray-200 py-1 flex justify-around text-xs font-bold text-slate-700 safe-area-bottom z-30 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300;
+  }
+
+  /* 導覽按鈕 (Nav Item) */
+  .app-nav-item {
+    @apply flex flex-col items-center gap-0.5 p-1 relative transition-colors;
+  }
+
+  /* 導覽按鈕 - 啟用狀態 */
+  .app-nav-item.active {
+    @apply text-indigo-700 dark:text-indigo-400;
+  }
+
+  /* 導覽按鈕 - 未啟用狀態 */
+  /* 修正：hover 文字顏色加深/提亮以符合 AAA */
+  .app-nav-item.inactive {
+    @apply hover:text-slate-900 dark:hover:text-slate-100;
+  }
+
+  /* 下拉選單樣式 */
+  .season-select {
+    @apply text-xs font-bold border-l pl-2 ml-2 outline-none bg-transparent cursor-pointer appearance-none pr-4;
+  }
+
+  /* 頂部按鈕 (深色切換/重新整理) */
+  /* 修正：text-slate-600 -> text-slate-700, dark:text-slate-300 -> dark:text-slate-200 */
+  .icon-button {
+    @apply p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors relative dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200;
+  }
+}
+
+/* ------------------------------------------- */
+/* 以下為原有的第三方套件適配 (如 Quill Editor) */
+/* ------------------------------------------- */
 
 /* 輸入框與表單元素深色適配 */
 .dark input, 
 .dark select, 
 .dark textarea {
-  background-color: #1e293b; /* bg-slate-800 */
-  border-color: #334155; /* border-slate-700 */
+  background-color: hsl(222.2 20% 23%); 
+  border-color: hsl(217.2 32.6% 25%); 
   color: #f8fafc;
 }
 
 .dark input:focus, 
 .dark select:focus, 
 .dark textarea:focus {
-  border-color: #6366f1;
+  border-color: hsl(245 100% 82%);
 }
 
 /* iOS 安全區域 */
@@ -72,7 +202,7 @@ body {
 }
 
 .dark .custom-scrollbar::-webkit-scrollbar-track {
-  background: #1e293b;
+  background: hsl(222.2 20% 15%);
 }
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #475569;
@@ -86,17 +216,17 @@ input, textarea, .ql-editor {
   user-select: text;
 }
 
-/* Quill Editor 樣式修正 (亮色預設) */
+/* Quill Editor 樣式 */
 .ql-toolbar.ql-snow {
   border-top-left-radius: 0.5rem;
   border-top-right-radius: 0.5rem;
-  border-color: #e2e8f0;
+  border-color: hsl(214.3 31.8% 91.4%);
   background-color: #f8fafc;
 }
 .ql-container.ql-snow {
-  border-bottom-left-radius: 0.5rem; /* 配合 RichTextEditor 結構調整 */
+  border-bottom-left-radius: 0.5rem;
   border-bottom-right-radius: 0.5rem;
-  border-color: #e2e8f0;
+  border-color: hsl(214.3 31.8% 91.4%);
   background: white;
 }
 .ql-editor {
@@ -105,60 +235,39 @@ input, textarea, .ql-editor {
   font-family: 'Noto Sans TC', sans-serif;
 }
 
-/* ------------------------------------------- */
-/* Quill Editor 深色模式適配 (Dark Mode) */
-/* ------------------------------------------- */
+/* Quill Editor Dark Mode */
 .dark .ql-toolbar.ql-snow {
-  background-color: #1e293b; /* bg-slate-800 */
-  border-color: #334155;     /* border-slate-700 */
+  background-color: hsl(222.2 20% 23%);
+  border-color: hsl(217.2 32.6% 25%);
 }
-
 .dark .ql-container.ql-snow {
-  background-color: #0f172a; /* bg-slate-900 (編輯區域比工具列深一點) */
-  border-color: #334155;
+  background-color: hsl(222.2 20% 15%);
+  border-color: hsl(217.2 32.6% 25%);
   color: #f1f5f9;
 }
-
-/* 工具列圖示線條 (Stroke) 變白 */
-.dark .ql-snow .ql-stroke {
-  stroke: #cbd5e1; /* slate-300 */
-}
-
-/* 工具列圖示填充 (Fill) 變白 */
-.dark .ql-snow .ql-fill {
-  fill: #cbd5e1;
-}
-
-/* 下拉選單箭頭與文字 */
-.dark .ql-snow .ql-picker {
-  color: #cbd5e1;
-}
-
-/* 下拉選單展開後的選項背景 */
+.dark .ql-snow .ql-stroke { stroke: #cbd5e1; }
+.dark .ql-snow .ql-fill { fill: #cbd5e1; }
+.dark .ql-snow .ql-picker { color: #cbd5e1; }
 .dark .ql-snow .ql-picker-options {
-  background-color: #1e293b;
-  border-color: #334155;
+  background-color: hsl(222.2 20% 23%);
+  border-color: hsl(217.2 32.6% 25%);
   color: #cbd5e1;
 }
-
-/* Hover 狀態 */
 .dark .ql-snow .ql-picker-item:hover,
 .dark .ql-snow .ql-picker-label:hover,
 .dark .ql-snow .ql-picker-label.ql-active,
 .dark .ql-snow .ql-picker-item.ql-selected {
-  color: #6366f1; /* indigo-500 */
+  color: hsl(245 100% 82%);
 }
-
 .dark .ql-snow .ql-picker-label:hover .ql-stroke,
 .dark .ql-snow .ql-picker-label.ql-active .ql-stroke,
 .dark .ql-snow button:hover .ql-stroke, 
 .dark .ql-snow button.ql-active .ql-stroke {
-  stroke: #6366f1;
+  stroke: hsl(245 100% 82%);
 }
-
 .dark .ql-snow .ql-picker-label:hover .ql-fill,
 .dark .ql-snow .ql-picker-label.ql-active .ql-fill,
 .dark .ql-snow button:hover .ql-fill, 
 .dark .ql-snow button.ql-active .ql-fill {
-  fill: #6366f1;
+  fill: hsl(245 100% 82%);
 }

@@ -66,7 +66,8 @@ export const ReportView = () => {
     return (
         <div className="animate-fadeIn space-y-4 w-[95vw] ml-[calc(50%-47.5vw)]">
             <div className="flex justify-between items-center">
-                <h2 className="font-bold text-slate-700 text-lg dark:text-slate-100">積分統整表</h2>
+                {/* 修改：使用 page-title */}
+                <h2 className="font-bold page-title text-lg mb-0">積分統整表</h2>
                 <div className="flex gap-2">
                     <Button variant="secondary" className="text-xs py-1.5" onClick={actions.exportReport} icon="ArrowDown">匯出</Button>
                     {!isHistoryMode && (
@@ -75,26 +76,31 @@ export const ReportView = () => {
                 </div>
             </div>
             
-            <Card noPadding className="flex flex-col h-[75vh] dark:bg-slate-900 dark:border-slate-800">
+            {/* 修改：使用 card 類別確保背景色正確，並加上 border-0 因為 card 自帶邊框 */}
+            <Card noPadding className="card flex flex-col h-[75vh] border-0 dark:border-slate-700">
                 <div className="overflow-auto flex-1 custom-scrollbar relative">
                     <table className="text-sm border-collapse relative min-w-full">
                         <thead>
                             <tr>
-                                <th className="sticky top-0 left-0 z-30 bg-slate-100 border-b border-r border-slate-200 p-3 min-w-[120px] text-left font-bold text-slate-600 shadow-sm h-12 whitespace-nowrap dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">
+                                {/* 修改：表頭背景色適配深色模式 */}
+                                <th className="sticky top-0 left-0 z-30 bg-slate-100 border-b border-r border-slate-200 p-3 min-w-[120px] text-left font-bold text-slate-700 shadow-sm h-12 whitespace-nowrap dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200">
                                     User Info
                                 </th>
                                 {weeks.map(w => (
+                                    // 修改：週次標題背景色適配
                                     <th key={w.week} onClick={() => toggleCol(w.week)} className="sticky top-0 z-20 bg-indigo-50 border-b border-r border-indigo-100 p-2 font-bold text-indigo-700 cursor-pointer hover:bg-indigo-100 transition-colors min-w-[80px] dark:bg-indigo-900/30 dark:border-slate-700 dark:text-indigo-300 dark:hover:bg-indigo-900/50" colSpan={expandedCols[w.week] ? w.tasks.length : 1}>
                                         <div className="flex items-center justify-center gap-1"><span>W{w.week}</span><Icon name={expandedCols[w.week] ? "ChevronDown" : "ChevronRight"} className="w-3 h-3"/></div>
                                     </th>
                                 ))}
                             </tr>
                             <tr>
-                                <th className="sticky left-0 z-20 bg-slate-50 border-r border-b border-slate-200 p-2 text-xs text-gray-400 font-normal text-left whitespace-nowrap dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500">
-                                    <div className="flex flex-col gap-1"><span>Name</span><span className="text-[10px] text-gray-300 dark:text-slate-600">Roles</span></div>
+                                {/* 修改：次級表頭背景色適配 */}
+                                <th className="sticky left-0 z-20 bg-slate-50 border-r border-b border-slate-200 p-2 text-xs text-gray-500 font-normal text-left whitespace-nowrap dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400">
+                                    <div className="flex flex-col gap-1"><span>Name</span><span className="text-[10px] text-gray-400 dark:text-slate-500">Roles</span></div>
                                 </th>
                                 {weeks.map(w => (
                                     expandedCols[w.week] ? w.tasks.map(t => (
+                                        // 修改：任務標題背景色適配
                                         <th key={t.id} className="bg-white border-b border-r border-gray-100 p-2 text-[10px] text-gray-500 font-medium whitespace-nowrap px-3 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-400" title={t.title}>
                                             {t.title}
                                         </th>
@@ -107,6 +113,7 @@ export const ReportView = () => {
                                 const userRoleBadges = getUserRoleBadges(row.user.roles);
                                 return (
                                     <tr key={row.user.uid} className="hover:bg-gray-50 dark:hover:bg-slate-800/50">
+                                        {/* 修改：使用者名稱欄位背景色適配 */}
                                         <td className="sticky left-0 z-10 bg-white border-r border-b border-gray-100 p-3 font-bold text-slate-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] whitespace-nowrap dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200">
                                             <div className="flex flex-col gap-1">
                                                 <span>{row.user.uid}</span>
@@ -119,7 +126,7 @@ export const ReportView = () => {
                                         {weeks.map(w => (
                                             expandedCols[w.week] ? w.tasks.map(t => {
                                                 const val = row.taskPoints[t.id];
-                                                return (<td key={t.id} className="border-b border-r border-gray-100 p-2 text-center text-xs whitespace-nowrap dark:border-slate-700 dark:text-slate-400">{val !== null ? <span className="font-bold text-gray-600 bg-gray-50 px-1.5 py-0.5 rounded dark:bg-slate-800 dark:text-slate-300">{val}</span> : <span className="text-gray-200 dark:text-slate-700">-</span>}</td>);
+                                                return (<td key={t.id} className="border-b border-r border-gray-100 p-2 text-center text-xs whitespace-nowrap dark:border-slate-700 dark:text-slate-400">{val !== null ? <span className="font-bold text-gray-600 bg-gray-50 px-1.5 py-0.5 rounded dark:bg-slate-800 dark:text-slate-300">{val}</span> : <span className="text-gray-300 dark:text-slate-600">-</span>}</td>);
                                             }) : <td key={w.week} className="border-b border-r border-gray-100 p-2 text-center bg-indigo-50/30 whitespace-nowrap dark:bg-indigo-900/20 dark:border-slate-700"><span className="font-bold text-indigo-600 text-xs dark:text-indigo-300">{row.weekTotals[w.week]}</span></td>
                                         ))}
                                     </tr>

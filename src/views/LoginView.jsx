@@ -48,7 +48,7 @@ export const LoginView = ({ onLogin, loading, onInitialize }) => {
         <Icon name={theme === 'dark' ? "Sun" : "Moon"} className="w-5 h-5" />
      </button>
 
-     <Card className="w-full max-w-sm text-center relative pt-8 pb-8 dark:bg-slate-900 dark:border-slate-800">
+     <Card className="w-full max-w-sm text-center relative pt-8 pb-8 dark:bg-slate-800 dark:border-slate-600">
        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 to-purple-600"></div>
        <div className="text-6xl mb-4">🌀</div>
        <h1 className="text-2xl font-black text-slate-800 mb-1 dark:text-white">Team Aura 波導戰隊</h1>
@@ -63,7 +63,7 @@ export const LoginView = ({ onLogin, loading, onInitialize }) => {
        </form>
 
        <div className="flex flex-col items-center gap-2">
-         <div className="flex items-center gap-2 px-3 py-1 bg-slate-200 rounded-full text-slate-600 text-xs font-mono font-bold shadow-sm dark:bg-slate-800 dark:text-slate-400">
+         <div className="flex items-center gap-2 px-3 py-1 bg-slate-200 rounded-full text-slate-600 text-xs font-mono font-bold shadow-sm dark:bg-slate-600 dark:text-slate-300">
            <Tag size={12} /><span>{versionInfo.version}</span>
          </div>
          {versionInfo.date && (

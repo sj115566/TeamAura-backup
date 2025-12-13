@@ -175,12 +175,14 @@ export const ProfileView = () => {
 
     const CategorySection = ({ title, type, list, onAdd }) => (
         <div className="mb-4 last:mb-0">
+            {/* 修改：使用 text-slate-700 dark:text-slate-200 */}
             <div onClick={() => toggleCategoryExpand(type)} className="flex justify-between items-center mb-2 px-1 cursor-pointer select-none group">
                 <div className="flex items-center gap-2"><Icon name={categoryExpanded[type] ? "ChevronDown" : "ChevronRight"} className="w-4 h-4 text-gray-400 group-hover:text-slate-600 dark:group-hover:text-slate-300" /><h3 className="font-bold text-slate-700 text-sm group-hover:text-indigo-600 transition-colors dark:text-slate-200 dark:group-hover:text-indigo-400">{title}</h3><Badge color="gray" className="text-[10px]">{list.length}</Badge></div>
                 <button onClick={(e) => { e.stopPropagation(); onAdd(); }} className="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded hover:bg-indigo-100 transition-colors dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50">+ 新增</button>
             </div>
             {categoryExpanded[type] && (
-                <Card noPadding>
+                // 修改：使用 card 類別確保背景，並加入 noPadding
+                <Card noPadding className="card border-slate-200 dark:border-slate-700">
                     <div className="divide-y divide-gray-50 dark:divide-slate-800">
                         {list.length > 0 ? list.map((cat) => (
                             <div key={cat.firestoreId} className="p-3 flex justify-between items-center text-sm">
@@ -198,7 +200,9 @@ export const ProfileView = () => {
 
     return (
         <div className="animate-fadeIn space-y-6">
-            <Card className="text-center">
+            {/* 修改：使用 card 類別確保背景，保留 text-center */}
+            <Card className="card text-center border-slate-200 dark:border-slate-700">
+                {/* 修改：使用 text-slate-800 dark:text-white */}
                 <h2 className="font-black text-xl text-slate-800 break-all mb-2 dark:text-white">{currentUser.username || currentUser.uid}</h2>
                 {myRoleBadges.length > 0 && (<div className="flex items-center justify-center gap-2 flex-wrap mb-3">{myRoleBadges.map(role => (<span key={role.code} className="text-[10px] px-2 py-0.5 rounded border font-bold shadow-sm" style={{ backgroundColor: role.color ? `${role.color}15` : '#f3f4f6', color: role.color || '#6b7280', borderColor: role.color ? `${role.color}40` : '#e5e7eb' }}>{role.label}</span>))}</div>)}
                 <div className="text-xs text-gray-400 mb-4">{isAdmin ? 'Administrator' : 'Trainer'}</div>
@@ -209,19 +213,23 @@ export const ProfileView = () => {
 
             {(!isAdmin || isHistoryMode) && mySubs.length > 0 && (
                 <div className="space-y-4">
+                  {/* 修改：使用 text-slate-700 dark:text-slate-200 */}
                   <div className="flex items-center gap-2"><h3 className="font-bold text-slate-700 text-sm ml-1 dark:text-slate-200">提交紀錄</h3><button onClick={() => setHistorySort(prev => prev === 'desc' ? 'asc' : 'desc')} className="p-1 rounded-lg hover:bg-slate-200 text-slate-400 transition-colors dark:hover:bg-slate-800"><Icon name={historySort === 'desc' ? "ArrowDown" : "ArrowUp"} className="w-3 h-3" /></button></div>
                   {sortedHistoryWeeks.map(week => (
-                    <Card key={week} noPadding>
+                    // 修改：使用 card 類別確保背景，並加入 noPadding
+                    <Card key={week} noPadding className="card border-slate-200 dark:border-slate-700">
                       <div className="bg-gray-50 px-4 py-2 text-xs font-bold text-gray-500 border-b border-gray-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400">
                           {week === 'SPECIAL_PINNED' ? '常駐與公告任務' : `第 ${week} 週`}
                       </div>
                       <div className="divide-y divide-gray-50 dark:divide-slate-800">
                         {mySubs.filter(s => s.week === week).map(sub => (
                             <div key={sub.id} className="p-3 flex justify-between items-center text-sm">
+                                {/* 修改：使用 text-slate-700 dark:text-slate-300 */}
                                 <span className="font-medium text-slate-700 dark:text-slate-300">{sub.taskTitle}</span>
                                 <div className="flex items-center gap-2">
                                     {sub.status === 'approved' && (
                                         <div className="text-xs">
+                                            {/* 修改：使用 text-slate-900 dark:text-white */}
                                             <span className="font-bold text-slate-900 dark:text-white">{Number(sub.points) || 0} <span className="text-[10px] font-normal">Pts</span></span>
                                         </div>
                                     )}
@@ -248,12 +256,15 @@ export const ProfileView = () => {
                 <div className="mt-6 space-y-6">
                      {/* 1. 身分組設定 (Role Section) */}
                      <div>
+                        {/* 修改：使用 text-slate-700 dark:text-slate-200 */}
                         <div className="flex justify-between items-center mb-2 px-1"><h3 className="font-bold text-slate-700 text-sm dark:text-slate-200">身分組設定 (加成系統)</h3><button onClick={handleOpenAddRole} className="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50">+ 新增</button></div>
-                        <Card noPadding><div className="divide-y divide-gray-50 dark:divide-slate-800">{(roles || []).length > 0 ? (roles || []).map(role => { const pct = Math.round((Number(role.multiplier) - 1) * 100); return (<div key={role.firestoreId} className="p-3 flex justify-between items-center text-sm"><div className="flex items-center gap-2"><span className="font-mono text-xs bg-gray-100 px-1 rounded text-gray-500 dark:bg-slate-700 dark:text-slate-300">{role.code}</span><span style={{color: role.color}} className="font-bold">{role.label}</span><span className="text-xs text-gray-400">{pct > 0 ? `+${pct}%` : '0%'}</span></div><div className="flex gap-1"><button onClick={() => handleOpenEditRole(role)} className="p-1 text-gray-400 hover:text-indigo-500 dark:hover:text-indigo-400"><Icon name="Edit2" className="w-3 h-3"/></button><button onClick={() => handleDeleteRole(role.firestoreId)} className="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400"><Icon name="Trash2" className="w-3 h-3"/></button></div></div>); }) : <div className="p-4 text-center text-xs text-gray-400">尚無身分組設定</div>}</div></Card>
+                        {/* 修改：使用 card 類別確保背景，並加入 noPadding */}
+                        <Card noPadding className="card border-slate-200 dark:border-slate-700"><div className="divide-y divide-gray-50 dark:divide-slate-800">{(roles || []).length > 0 ? (roles || []).map(role => { const pct = Math.round((Number(role.multiplier) - 1) * 100); return (<div key={role.firestoreId} className="p-3 flex justify-between items-center text-sm"><div className="flex items-center gap-2"><span className="font-mono text-xs bg-gray-100 px-1 rounded text-gray-500 dark:bg-slate-700 dark:text-slate-300">{role.code}</span><span style={{color: role.color}} className="font-bold">{role.label}</span><span className="text-xs text-gray-400">{pct > 0 ? `+${pct}%` : '0%'}</span></div><div className="flex gap-1"><button onClick={() => handleOpenEditRole(role)} className="p-1 text-gray-400 hover:text-indigo-500 dark:hover:text-indigo-400"><Icon name="Edit2" className="w-3 h-3"/></button><button onClick={() => handleDeleteRole(role.firestoreId)} className="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400"><Icon name="Trash2" className="w-3 h-3"/></button></div></div>); }) : <div className="p-4 text-center text-xs text-gray-400">尚無身分組設定</div>}</div></Card>
                      </div>
 
                      {/* 2. 分類標籤設定 (Category Section) */}
                      <div>
+                        {/* 修改：使用 text-slate-700 dark:text-slate-200 */}
                         <div className="flex justify-between items-center mb-2 px-1"><h3 className="font-bold text-slate-700 text-sm dark:text-slate-200">分類標籤管理</h3></div>
                         <CategorySection title="任務分類" type="task" list={(categories || []).filter(c => c.type !== 'announcement')} onAdd={() => handleOpenAddCat('task')} />
                         <CategorySection title="公告分類" type="announcement" list={(categories || []).filter(c => c.type === 'announcement')} onAdd={() => handleOpenAddCat('announcement')} />
@@ -271,10 +282,11 @@ export const ProfileView = () => {
             {/* Role Modal */}
             <Modal isOpen={roleModal.isOpen} onClose={() => setRoleModal({...roleModal, isOpen: false})} title={roleModal.id ? "編輯身分組" : "新增身分組"}>
                 <div className="space-y-4">
-                    <div><label className="text-xs font-bold text-gray-500 mb-1 block dark:text-slate-400">代號 (唯一 ID)</label><input className="w-full p-2 border rounded text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white" placeholder="如: vip, mod" value={roleModal.code} onChange={e => setRoleModal({...roleModal, code: e.target.value})} disabled={!!roleModal.id} /></div>
-                    <div><label className="text-xs font-bold text-gray-500 mb-1 block dark:text-slate-400">顯示名稱</label><input className="w-full p-2 border rounded text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={roleModal.label} onChange={e => setRoleModal({...roleModal, label: e.target.value})} /></div>
-                    <div><label className="text-xs font-bold text-gray-500 mb-1 block dark:text-slate-400">積分加成 (%)</label><div className="flex items-center gap-2"><input type="number" className="w-full p-2 border rounded text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={roleModal.percentage} onChange={e => setRoleModal({...roleModal, percentage: e.target.value})} /><span className="text-sm font-bold text-gray-500">%</span></div></div>
-                    <div><label className="text-xs font-bold text-gray-500 mb-1 block dark:text-slate-400">標籤顏色</label><div className="flex flex-wrap gap-2 mb-2">{presetColors.map(color => (<button key={color} type="button" onClick={() => setRoleModal({...roleModal, color})} className={`w-6 h-6 rounded-full border-2 ${roleModal.color === color ? 'border-gray-600 scale-110' : 'border-transparent'}`} style={{ backgroundColor: color }} />))}</div><div className="flex items-center gap-2"><input type="color" className="w-10 h-10 p-1 border rounded cursor-pointer shrink-0" value={roleModal.color} onChange={e => setRoleModal({...roleModal, color: e.target.value})} /><input type="text" className="w-full p-2 border rounded text-sm uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={roleModal.color} onChange={e => setRoleModal({...roleModal, color: e.target.value})} /></div></div>
+                    {/* 修改：使用 input 類別 */}
+                    <div><label className="text-xs font-bold text-gray-500 mb-1 block dark:text-slate-400">代號 (唯一 ID)</label><input className="input" placeholder="如: vip, mod" value={roleModal.code} onChange={e => setRoleModal({...roleModal, code: e.target.value})} disabled={!!roleModal.id} /></div>
+                    <div><label className="text-xs font-bold text-gray-500 mb-1 block dark:text-slate-400">顯示名稱</label><input className="input" value={roleModal.label} onChange={e => setRoleModal({...roleModal, label: e.target.value})} /></div>
+                    <div><label className="text-xs font-bold text-gray-500 mb-1 block dark:text-slate-400">積分加成 (%)</label><div className="flex items-center gap-2"><input type="number" className="input" value={roleModal.percentage} onChange={e => setRoleModal({...roleModal, percentage: e.target.value})} /><span className="text-sm font-bold text-gray-500">%</span></div></div>
+                    <div><label className="text-xs font-bold text-gray-500 mb-1 block dark:text-slate-400">標籤顏色</label><div className="flex flex-wrap gap-2 mb-2">{presetColors.map(color => (<button key={color} type="button" onClick={() => setRoleModal({...roleModal, color})} className={`w-6 h-6 rounded-full border-2 ${roleModal.color === color ? 'border-gray-600 scale-110' : 'border-transparent'}`} style={{ backgroundColor: color }} />))}</div><div className="flex items-center gap-2"><input type="color" className="w-10 h-10 p-1 border rounded cursor-pointer shrink-0" value={roleModal.color} onChange={e => setRoleModal({...roleModal, color: e.target.value})} /><input type="text" className="input" value={roleModal.color} onChange={e => setRoleModal({...roleModal, color: e.target.value})} /></div></div>
                     <Button onClick={handleSaveRole} className="w-full">儲存</Button>
                 </div>
             </Modal>
@@ -282,12 +294,14 @@ export const ProfileView = () => {
             {/* Category Modal */}
             <Modal isOpen={catModal.isOpen} onClose={() => setCatModal({...catModal, isOpen: false})} title={catModal.id ? "編輯分類" : "新增分類"}>
                 <div className="space-y-4">
-                    <div><label className="text-xs font-bold text-gray-500 mb-1 block dark:text-slate-400">分類名稱</label><input className="w-full p-2 border rounded mt-1 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={catModal.label} onChange={e => setCatModal({...catModal, label: e.target.value})} /></div>
+                    {/* 修改：使用 input 類別 */}
+                    <div><label className="text-xs font-bold text-gray-500 mb-1 block dark:text-slate-400">分類名稱</label><input className="input" value={catModal.label} onChange={e => setCatModal({...catModal, label: e.target.value})} /></div>
                     <div>
                         <label className="text-xs font-bold text-gray-500 dark:text-slate-400">適用類型</label>
-                        <select className="w-full p-2 border rounded mt-1 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={catModal.type} onChange={e => setCatModal({...catModal, type: e.target.value})}><option value="task">任務 (Task)</option><option value="announcement">公告 (Announcement)</option></select>
+                        {/* 修改：使用 input 類別 (select 元素) */}
+                        <select className="input" value={catModal.type} onChange={e => setCatModal({...catModal, type: e.target.value})}><option value="task">任務 (Task)</option><option value="announcement">公告 (Announcement)</option></select>
                     </div>
-                    <div><label className="text-xs font-bold text-gray-500 mb-1 block dark:text-slate-400">標籤顏色</label><div className="flex flex-wrap gap-2 mb-2">{presetColors.map(color => (<button key={color} type="button" onClick={() => setCatModal({...catModal, color})} className={`w-6 h-6 rounded-full border-2 ${catModal.color === color ? 'border-gray-600 scale-110' : 'border-transparent'}`} style={{ backgroundColor: color }} />))}</div><div className="flex items-center gap-2"><input type="color" className="w-10 h-10 p-1 border rounded cursor-pointer shrink-0" value={catModal.color} onChange={e => setCatModal({...catModal, color: e.target.value})} /><input type="text" className="w-full p-2 border rounded text-sm uppercase dark:bg-slate-800 dark:border-slate-700 dark:text-white" value={catModal.color} onChange={e => setCatModal({...catModal, color: e.target.value})} /></div></div>
+                    <div><label className="text-xs font-bold text-gray-500 mb-1 block dark:text-slate-400">標籤顏色</label><div className="flex flex-wrap gap-2 mb-2">{presetColors.map(color => (<button key={color} type="button" onClick={() => setCatModal({...catModal, color})} className={`w-6 h-6 rounded-full border-2 ${catModal.color === color ? 'border-gray-600 scale-110' : 'border-transparent'}`} style={{ backgroundColor: color }} />))}</div><div className="flex items-center gap-2"><input type="color" className="w-10 h-10 p-1 border rounded cursor-pointer shrink-0" value={catModal.color} onChange={e => setCatModal({...catModal, color: e.target.value})} /><input type="text" className="input" value={catModal.color} onChange={e => setCatModal({...catModal, color: e.target.value})} /></div></div>
                     {catModal.systemTag && <div className="text-[10px] text-indigo-500 bg-indigo-50 p-2 rounded dark:bg-indigo-900/30 dark:text-indigo-300">此為系統保留標籤 ({catModal.systemTag})，若修改名稱，關聯的任務依然會留在原系統區塊。</div>}
                     <Button onClick={handleSaveCat} className="w-full">儲存</Button>
                 </div>

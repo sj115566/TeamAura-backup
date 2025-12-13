@@ -10,10 +10,11 @@ import { Button } from '../components/ui/Button';
 // Helper to get medal color
 const getRankStyle = (rank) => {
    switch (rank) {
-       case 1: return { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-600 dark:text-yellow-400', border: 'border-yellow-200 dark:border-yellow-700', icon: '👑' };
-       case 2: return { bg: 'bg-slate-100 dark:bg-slate-700/50', text: 'text-slate-600 dark:text-slate-400', border: 'border-slate-200 dark:border-slate-600', icon: '🥈' };
-       case 3: return { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-600 dark:text-orange-400', border: 'border-orange-200 dark:border-orange-700', icon: '🥉' };
-       default: return { bg: 'bg-white dark:bg-slate-800', text: 'text-slate-600 dark:text-slate-400', border: 'border-slate-100 dark:border-slate-700', icon: rank };
+       case 1: return { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-400', border: 'border-yellow-200 dark:border-yellow-700', icon: '👑' };
+       // 修改: 調整文字顏色以符合對比度 text-slate-600 -> text-slate-700 / text-slate-300
+       case 2: return { bg: 'bg-slate-100 dark:bg-slate-700/50', text: 'text-slate-700 dark:text-slate-300', border: 'border-slate-200 dark:border-slate-600', icon: '🥈' };
+       case 3: return { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-400', border: 'border-orange-200 dark:border-orange-700', icon: '🥉' };
+       default: return { bg: 'bg-white dark:bg-slate-800', text: 'text-slate-700 dark:text-slate-300', border: 'border-slate-100 dark:border-slate-700', icon: rank };
    }
 };
 
@@ -165,7 +166,8 @@ export const LeaderboardView = () => {
    return (
        <div className="animate-fadeIn space-y-6 pb-20">
            {/* Top Card: Season Goal Progress */}
-           <Card noPadding className="p-4 bg-gradient-to-br from-indigo-900 to-slate-900 text-white relative overflow-hidden dark:from-indigo-950 dark:to-slate-950">
+           {/* 保留 Card 元件，並保留原本的漸層背景 (不套用 .card 類別，因為這裡需要特殊背景) */}
+           <Card noPadding className="p-4 bg-gradient-to-br from-indigo-600 to-slate-700 text-white relative overflow-hidden dark:from-indigo-600 dark:to-slate-900 border-0">
                <div className="relative z-10">
                    <div className="flex justify-between items-end mb-2">
                        <div>
@@ -186,11 +188,13 @@ export const LeaderboardView = () => {
 
            {/* Lottery Target Info (if set) */}
            {lotteryTarget > 0 && (
-               <div className="bg-white/50 border border-indigo-100 rounded-xl p-3 flex items-center justify-between dark:bg-slate-800/50 dark:border-slate-700">
+               /* 修改：恢復使用 <Card> 元件，並加上 card 類別確保顏色變數生效 */
+               <Card className="card p-3 flex items-center justify-between">
                    <div className="flex items-center gap-2">
                        <span className="text-2xl">🎟️</span>
                        <div>
-                           <div className="text-xs text-slate-500 font-bold uppercase dark:text-slate-400">抽獎資格目標</div>
+                           {/* 修改：使用 text-muted-custom */}
+                           <div className="text-xs text-muted-custom font-bold uppercase">抽獎資格目標</div>
                            <div className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
                                賽季積分需達 <span className="text-lg">{lotteryTarget}</span> 分
                            </div>
@@ -202,13 +206,15 @@ export const LeaderboardView = () => {
                        </div>
                        <div className="text-[10px] text-slate-400 uppercase font-bold">已達標人數</div>
                    </div>
-               </div>
+               </Card>
            )}
 
 
            {/* Leaderboard List */}
-           <Card noPadding>
-               <div className="bg-slate-50 p-3 text-xs font-bold text-gray-400 border-b border-gray-100 flex justify-between px-4 dark:bg-slate-800 dark:border-slate-700"><span>RANK / NAME</span><span>POINTS</span></div>
+           {/* 修改：給 Card 加上 card 類別以確保背景色，並加上 overflow-hidden 以修剪內部圓角 */}
+           <Card noPadding className="card overflow-hidden">
+               {/* 修改：Header 文字改為 text-muted-custom */}
+               <div className="bg-slate-50 p-3 text-xs font-bold text-muted-custom border-b border-gray-100 flex justify-between px-4 dark:bg-slate-800/50 dark:border-slate-700"><span>RANK / NAME</span><span>POINTS</span></div>
                {rankedUsers.length > 0 ? (
                    rankedUsers.map((user) => {
                        const style = getRankStyle(user.rank);
@@ -217,12 +223,14 @@ export const LeaderboardView = () => {
 
 
                        return (
-                           <div key={user.uid} className={`p-4 flex items-center justify-between border-b border-gray-50 last:border-0 transition-colors dark:border-slate-700 ${isMe ? 'bg-indigo-50/50 dark:bg-indigo-900/20' : ''}`}>
+                           /* 修改：List Item 邊框與背景色適配深色模式 */
+                           <div key={user.uid} className={`p-4 flex items-center justify-between border-b border-gray-100 last:border-0 transition-colors dark:border-slate-700 ${isMe ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}`}>
                                <div className="flex items-center gap-4">
                                    <div className={`font-black w-8 h-8 rounded-full flex items-center justify-center border text-sm ${style.bg} ${style.text} ${style.border}`}>
                                        {style.icon}
                                    </div>
                                    <div className="flex flex-col min-w-0">
+                                       {/* 修改：使用 text-slate-700 */}
                                        <div className="font-bold text-slate-700 break-all flex items-center gap-2 dark:text-slate-200">
                                            {user.username || user.uid}
                                            {/* 🔥 抽獎資格標章 */}
@@ -239,6 +247,7 @@ export const LeaderboardView = () => {
                                    </div>
                                </div>
                                <div className="text-right">
+                                   {/* 修改：分數文字顏色 */}
                                    <div className="font-mono font-bold text-slate-800 dark:text-white text-lg">{user.rawPoints}</div>
                                    {/* 🔥 顯示賽季積分 (如果與總分不同，或者您想強制顯示) */}
                                    {user.seasonPoints !== user.rawPoints && (
@@ -251,7 +260,7 @@ export const LeaderboardView = () => {
                        );
                    })
                ) : (
-                   <div className="text-center py-12 text-slate-400 bg-slate-50 rounded-xl dark:bg-slate-800/50">
+                   <div className="text-center py-12 text-muted-custom bg-slate-50 rounded-xl dark:bg-slate-800/50">
                        <Icon name="Circle" className="w-12 h-12 mx-auto mb-3 opacity-50" />
                        <p>尚無排名資料</p>
                    </div>
@@ -262,12 +271,14 @@ export const LeaderboardView = () => {
            {/* Target Modal */}
            <Modal isOpen={isEditing} onClose={() => setIsEditing(false)} title="設定賽季與抽獎目標">
                <div className="space-y-4">
-                   <div><label className="text-xs font-bold text-gray-500 mb-1 block dark:text-slate-400">賽季目標標題</label><input className="w-full p-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white" placeholder="例如：本季總目標" value={editTitle} onChange={e => setEditTitle(e.target.value)} /></div>
-                   <div><label className="text-xs font-bold text-gray-500 mb-1 block dark:text-slate-400">總積分目標 (全體共同累積)</label><input type="number" className="w-full p-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white" placeholder="10000" value={editGoal} onChange={e => setEditGoal(e.target.value)} /></div>
+                   {/* 修改：使用 input 類別與 text-muted-custom */}
+                   <div><label className="text-xs font-bold text-muted-custom mb-1 block">賽季目標標題</label><input className="input" placeholder="例如：本季總目標" value={editTitle} onChange={e => setEditTitle(e.target.value)} /></div>
+                   <div><label className="text-xs font-bold text-muted-custom mb-1 block">總積分目標 (全體共同累積)</label><input type="number" className="input" placeholder="10000" value={editGoal} onChange={e => setEditGoal(e.target.value)} /></div>
                    <div className="border-t border-gray-100 pt-4 dark:border-slate-700">
                        <label className="text-xs font-bold text-indigo-600 mb-1 block dark:text-indigo-400">🎟️ 抽獎資格目標 (個人賽季積分)</label>
                        <p className="text-[10px] text-gray-400 mb-2">當使用者的個人賽季積分（扣除 Bonus 任務）達到此分數時，將獲得抽獎資格。</p>
-                       <input type="number" className="w-full p-2 border rounded-lg border-indigo-200 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-800 dark:text-white" placeholder="例如：1000" value={editLotteryTarget} onChange={e => setEditLotteryTarget(e.target.value)} />
+                       {/* 修改：使用 input 類別，保留特殊背景 */}
+                       <input type="number" className="input border-indigo-200 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-800" placeholder="例如：1000" value={editLotteryTarget} onChange={e => setEditLotteryTarget(e.target.value)} />
                    </div>
                    <Button onClick={handleSave} className="w-full">儲存全部設定</Button>
                </div>
@@ -278,6 +289,3 @@ export const LeaderboardView = () => {
 
 
 export default LeaderboardView;
-
-
-
